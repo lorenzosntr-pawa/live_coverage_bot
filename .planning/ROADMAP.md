@@ -1,0 +1,82 @@
+# Roadmap: Live Coverage Bot
+
+## Overview
+
+Build a live event coverage comparison tool that monitors SportyBet and BetPawa for live football matches, alerts via Slack when events are missing from BetPawa. Starting with foundation and API clients, progressing through matching engine and alerts, finishing with containerized deployment.
+
+## Domain Expertise
+
+None
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+- [ ] **Phase 1: Foundation** - Project structure, dependencies, config schema
+- [ ] **Phase 2: SportyBet Client** - API client for live event monitoring
+- [ ] **Phase 3: BetPawa Client** - API client for live event monitoring
+- [ ] **Phase 4: Event Matching** - Comparison engine with fuzzy matching
+- [ ] **Phase 5: Slack Alerts** - Webhook integration with formatted alerts
+- [ ] **Phase 6: Monitoring Loop** - Polling orchestration and deduplication
+- [ ] **Phase 7: Docker Deployment** - Containerization and deployment
+
+## Phase Details
+
+### Phase 1: Foundation
+**Goal**: Establish project structure, async framework, config schema for priority leagues
+**Depends on**: Nothing (first phase)
+**Research**: Unlikely (patterns from reference code)
+**Plans**: TBD
+
+### Phase 2: SportyBet Client
+**Goal**: API client to fetch live football events with tournament filtering
+**Depends on**: Phase 1
+**Research**: Unlikely (reference code provides implementation)
+**Plans**: TBD
+
+### Phase 3: BetPawa Client
+**Goal**: API client to fetch live football events from BetPawa
+**Depends on**: Phase 1
+**Research**: Unlikely (API documented in project)
+**Plans**: TBD
+
+### Phase 4: Event Matching
+**Goal**: Compare events across platforms, detect SportyBet events missing from BetPawa
+**Depends on**: Phase 2, Phase 3
+**Research**: Unlikely (standard fuzzy matching libraries)
+**Plans**: TBD
+
+### Phase 5: Slack Alerts
+**Goal**: Webhook integration sending formatted match alerts with teams, league, score, time
+**Depends on**: Phase 4
+**Research**: Unlikely (Slack webhooks are straightforward)
+**Plans**: TBD
+
+### Phase 6: Monitoring Loop
+**Goal**: Polling orchestration (30s interval), duplicate alert prevention, graceful error handling
+**Depends on**: Phase 5
+**Research**: Unlikely (async polling pattern from reference code)
+**Plans**: TBD
+
+### Phase 7: Docker Deployment
+**Goal**: Dockerfile, docker-compose, environment config for containerized deployment
+**Depends on**: Phase 6
+**Research**: Unlikely (standard containerization)
+**Plans**: TBD
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Foundation | 0/TBD | Not started | - |
+| 2. SportyBet Client | 0/TBD | Not started | - |
+| 3. BetPawa Client | 0/TBD | Not started | - |
+| 4. Event Matching | 0/TBD | Not started | - |
+| 5. Slack Alerts | 0/TBD | Not started | - |
+| 6. Monitoring Loop | 0/TBD | Not started | - |
+| 7. Docker Deployment | 0/TBD | Not started | - |
