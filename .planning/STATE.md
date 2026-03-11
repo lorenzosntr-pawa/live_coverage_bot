@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 ## Current Position
 
 Phase: 2 of 7 (SportyBet Client) — COMPLETE
-Plan: 1/1 complete in phase
-Status: Phase complete
-Last activity: 2026-03-11 — Completed 02-01-PLAN.md
+Plan: 1/1 complete in phase + 1 FIX plan
+Status: Phase complete (UAT fix applied)
+Last activity: 2026-03-11 — Completed 02-01-FIX.md (API endpoint fix)
 
 Progress: ██░░░░░░░░ 28%
 
@@ -28,7 +28,7 @@ Progress: ██░░░░░░░░ 28%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 1 | 6 min | 6 min |
-| 02-sportybet-client | 1 | 5 min | 5 min |
+| 02-sportybet-client | 1+1 FIX | 13 min | 6.5 min |
 
 **Recent Trend:**
 - Last 5 plans: 6m, 5m
@@ -54,5 +54,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-11
-Stopped at: Phase 2 complete — ready for Phase 3 planning
+Stopped at: Phase 2 FIX complete — UAT issue resolved, ready for Phase 3 planning
 Resume file: None
