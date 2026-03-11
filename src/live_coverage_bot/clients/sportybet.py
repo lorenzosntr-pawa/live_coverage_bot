@@ -1,7 +1,7 @@
 """SportyBet API client for fetching live football events."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, Self
 
@@ -137,7 +137,7 @@ class SportyBetClient:
 
         # Parse start time (estimateStartTime is in milliseconds)
         start_time_ms = event_data.get("estimateStartTime", 0)
-        start_time = datetime.fromtimestamp(start_time_ms / 1000, tz=timezone.utc)
+        start_time = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
 
         return LiveEvent(
             event_id=event_id,

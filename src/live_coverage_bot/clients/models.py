@@ -1,12 +1,12 @@
 """Data models for API client responses."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, computed_field
 
 
-class ProviderType(str, Enum):
+class ProviderType(StrEnum):
     """Provider types for live event data."""
 
     SPORTRADAR = "SPORTRADAR"
