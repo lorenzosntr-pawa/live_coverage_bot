@@ -28,7 +28,7 @@ None
 **Goal**: Establish project structure, async framework, config schema for priority leagues
 **Depends on**: Nothing (first phase)
 **Research**: Unlikely (patterns from reference code)
-**Plans**: TBD
+**Plans**: 1
 
 ### Phase 2: SportyBet Client
 **Goal**: API client to fetch live football events with tournament filtering
@@ -78,7 +78,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/1 | Planned | - |
 | 2. SportyBet Client | 0/TBD | Not started | - |
 | 3. BetPawa Client | 0/TBD | Not started | - |
 | 4. Event Matching | 0/TBD | Not started | - |
