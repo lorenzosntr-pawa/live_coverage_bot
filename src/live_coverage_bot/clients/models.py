@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, PrivateAttr, computed_field
 
 
 class ProviderType(StrEnum):
@@ -21,9 +21,13 @@ class ProviderID(BaseModel):
 
 
 class LiveEvent(BaseModel):
-    """Live event data from SportyBet."""
+    """Live event data from betting platform APIs.
 
-    event_id: str  # Raw SportyBet event ID like "sr:match:12345"
+    Supports both SportyBet (extracts provider IDs from event_id) and
+    BetPawa (accepts pre-extracted provider IDs via _provider_ids_override).
+    """
+
+    event_id: str  # Platform-specific event ID (sr:match:X for SportyBet, bp:X for BetPawa)
     home_team: str
     away_team: str
     competition_id: str
@@ -33,19 +37,25 @@ class LiveEvent(BaseModel):
     away_score: int | None = None
     start_time: datetime
 
+    # Private attribute for BetPawa-style provider ID injection
+    _provider_ids_override: list[ProviderID] | None = PrivateAttr(default=None)
+
     @computed_field
     @property
     def provider_ids(self) -> list[ProviderID]:
-        """Extract provider IDs from event_id.
+        """Get provider IDs for cross-platform matching.
 
-        SportyBet event ID format:
+        For BetPawa events: Returns pre-extracted IDs from widgets.
+        For SportyBet events: Extracts from event_id format:
         - "sr:match:12345" -> SportRadar ID 12345
         - "sr:match:1111111112345" -> GeniusSports ID 12345 (8 ones prefix)
         """
+        if self._provider_ids_override is not None:
+            return self._provider_ids_override
         return self._extract_provider_ids()
 
     def _extract_provider_ids(self) -> list[ProviderID]:
-        """Parse event_id to extract provider information."""
+        """Parse event_id to extract provider information (SportyBet format)."""
         ids: list[ProviderID] = []
 
         if not self.event_id.startswith("sr:match:"):
