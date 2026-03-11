@@ -41,7 +41,22 @@ Reliable detection of missing live events in priority leagues — never miss an 
 - Discovery loop (30s) + polling loop (12s) pattern
 - Clean separation: api_client, scraper, processor, config modules
 
-**BetPawa API**: User has knowledge of the API structure (endpoints, headers, response formats).
+**BetPawa API** (documented in `betpawa_api_endpoints/`):
+- Endpoint: `GET https://www.betpawa.ng/api/sportsbook/v3/events/lists/by-queries`
+- Query param `q` with JSON: `{"queries":[{"query":{"eventType":"LIVE","categories":["2"]}}]}`
+- Headers: `x-pawa-brand: betpawa-nigeria`, `x-pawa-language: en`, `devicetype: web`
+- Response: `responses[].responses[]` array of events
+- Event fields: `id`, `name`, `competition.{id,name}`, `region.name`, `participants[].name`, `results.display.minute`, `startTime`
+
+**SportyBet API** (from reference code):
+- Endpoint: `GET /liveOrPrematchEvents?sportId=sr:sport:1` (soccer)
+- Event detail: `GET /event?eventId={id}`
+- Response: `data[].events[].eventId`, tournament filtering by `id`
+
+**Event matching strategy**: Match events between platforms using:
+- Team names (fuzzy match needed — naming varies)
+- Competition/league name
+- Start time (within tolerance)
 
 **Architecture approach**: Build on patterns from SportyBet scraper — async Python, similar polling architecture, extend to support dual-source monitoring and comparison.
 
