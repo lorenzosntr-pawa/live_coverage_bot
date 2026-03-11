@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class SportyBetConfig(BaseModel):
     """SportyBet API configuration."""
 
-    base_url: str = "https://www.sportybet.com/api/ng"
+    base_url: str = "https://www.sportybet.com/api/ng/factsCenter"
 
 
 class BetPawaConfig(BaseModel):

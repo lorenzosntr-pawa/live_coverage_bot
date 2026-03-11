@@ -1,9 +1,10 @@
 """SportyBet API client for fetching live football events."""
 
 import logging
+import time
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
 import httpx
 
@@ -25,6 +26,18 @@ class SportyBetClient:
     Fetches live football events with provider ID extraction.
     """
 
+    # Required headers for SportyBet API (from reference implementation)
+    DEFAULT_HEADERS: ClassVar[dict[str, str]] = {
+        "clientid": "web",
+        "platform": "web",
+        "operid": "2",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+    }
+
     def __init__(self, config: SportyBetConfig) -> None:
         """Initialize the client with configuration.
 
@@ -35,6 +48,7 @@ class SportyBetClient:
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             timeout=10.0,
+            headers=self.DEFAULT_HEADERS,
         )
 
     async def get_live_events(self) -> list[LiveEvent]:
@@ -47,12 +61,24 @@ class SportyBetClient:
             SportyBetError: If the API request fails.
         """
         try:
+            # Add timestamp parameter (required by SportyBet API)
+            params = {
+                "sportId": "sr:sport:1",
+                "_t": str(int(time.time() * 1000)),
+            }
             response = await self._client.get(
                 "/liveOrPrematchEvents",
-                params={"sportId": "sr:sport:1"},
+                params=params,
             )
             response.raise_for_status()
             data = response.json()
+
+            # Check for successful response (bizCode 10000)
+            biz_code = data.get("bizCode")
+            if biz_code != 10000:
+                logger.warning("SportyBet API returned bizCode=%s", biz_code)
+                return []
+
             return self._parse_events(data)
         except httpx.HTTPStatusError as e:
             logger.error("SportyBet API returned error: %s", e.response.status_code)
