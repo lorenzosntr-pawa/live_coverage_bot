@@ -16,7 +16,7 @@ None
 
 - [x] **Phase 1: Foundation** - Project structure, dependencies, config schema
 - [x] **Phase 2: SportyBet Client** - API client for live event monitoring
-- [ ] **Phase 3: BetPawa Client** - API client for live event monitoring
+- [x] **Phase 3: BetPawa Client** - API client for live event monitoring
 - [ ] **Phase 4: Event Matching** - Comparison engine with provider ID matching
 - [ ] **Phase 5: Slack Alerts** - Webhook integration with formatted alerts
 - [ ] **Phase 6: Monitoring Loop** - Polling orchestration and deduplication
@@ -40,7 +40,7 @@ None
 **Goal**: API client to fetch live football events from BetPawa
 **Depends on**: Phase 1
 **Research**: Unlikely (API documented in project)
-**Plans**: TBD
+**Plans**: 1
 
 ### Phase 4: Event Matching
 **Goal**: Compare events via provider ID matching (SportRadar/GeniusSports IDs), detect missing events
@@ -80,7 +80,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete | 2026-03-11 |
 | 2. SportyBet Client | 1/1 | Complete | 2026-03-11 |
-| 3. BetPawa Client | 0/TBD | Not started | - |
+| 3. BetPawa Client | 1/1 | Complete | 2026-03-11 |
 | 4. Event Matching | 0/TBD | Not started | - |
 | 5. Slack Alerts | 0/TBD | Not started | - |
 | 6. Monitoring Loop | 0/TBD | Not started | - |
