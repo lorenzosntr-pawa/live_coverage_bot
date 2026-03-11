@@ -144,22 +144,28 @@ class SportyBetClient:
         home_team = event_data.get("homeTeamName", "")
         away_team = event_data.get("awayTeamName", "")
 
-        # Get game info for score and minute
-        game_info = event_data.get("gameInfo", {})
-        live_score = game_info.get("liveScore", "")
-        minute = game_info.get("minute")
-
-        # Parse score if available (format: "1-0" or "1:0")
+        # Get score from setScore field (format: "1:0" or "1-0")
+        set_score = event_data.get("setScore", "")
         home_score: int | None = None
         away_score: int | None = None
-        if live_score:
-            score_parts = live_score.replace(":", "-").split("-")
+        if set_score:
+            score_parts = set_score.replace(":", "-").split("-")
             if len(score_parts) == 2:
                 try:
                     home_score = int(score_parts[0].strip())
                     away_score = int(score_parts[1].strip())
                 except ValueError:
                     pass
+
+        # Get minute from playedSeconds field (format: "MM:SS" like "09:05")
+        played_seconds = event_data.get("playedSeconds", "")
+        minute: str | None = None
+        if played_seconds:
+            try:
+                # Extract minutes from MM:SS format
+                minute = played_seconds.split(":")[0]
+            except (IndexError, ValueError):
+                pass
 
         # Parse start time (estimateStartTime is in milliseconds)
         start_time_ms = event_data.get("estimateStartTime", 0)
@@ -171,7 +177,7 @@ class SportyBetClient:
             away_team=away_team,
             competition_id=competition_id,
             competition_name=competition_name,
-            minute=str(minute) if minute is not None else None,
+            minute=minute,
             home_score=home_score,
             away_score=away_score,
             start_time=start_time,
