@@ -53,10 +53,12 @@ Reliable detection of missing live events in priority leagues — never miss an 
 - Event detail: `GET /event?eventId={id}`
 - Response: `data[].events[].eventId`, tournament filtering by `id`
 
-**Event matching strategy**: Match events between platforms using:
-- Team names (fuzzy match needed — naming varies)
-- Competition/league name
-- Start time (within tolerance)
+**Event matching strategy**: Provider ID matching (exact, no fuzzy logic needed):
+- SportyBet event IDs encode provider: `sr:match:{id}` for SportRadar, `sr:match:11111111{id}` for GeniusSports
+- BetPawa `widgets[]` array contains both `SPORTRADAR` and `GENIUSSPORTS` IDs when available
+- Extract numeric ID from SportyBet, check against BetPawa widget IDs
+- Works even when platforms use different providers for same event (cross-provider matching)
+- Fallback to team name + start time only if widget IDs missing
 
 **Architecture approach**: Build on patterns from SportyBet scraper — async Python, similar polling architecture, extend to support dual-source monitoring and comparison.
 
@@ -74,6 +76,7 @@ Reliable detection of missing live events in priority leagues — never miss an 
 | Webhook over full Slack bot | Faster to ship, bot features can layer on | — Pending |
 | Light tracking over full DB | Only need deduplication, not analytics | — Pending |
 | Python + async | Match reference code patterns, proven for this use case | — Pending |
+| Provider ID matching over fuzzy names | Both platforms expose SportRadar/GeniusSports IDs, exact matching possible | Confirmed |
 
 ---
 *Last updated: 2026-03-11 after initialization*

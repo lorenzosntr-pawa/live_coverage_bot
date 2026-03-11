@@ -17,7 +17,7 @@ None
 - [ ] **Phase 1: Foundation** - Project structure, dependencies, config schema
 - [ ] **Phase 2: SportyBet Client** - API client for live event monitoring
 - [ ] **Phase 3: BetPawa Client** - API client for live event monitoring
-- [ ] **Phase 4: Event Matching** - Comparison engine with fuzzy matching
+- [ ] **Phase 4: Event Matching** - Comparison engine with provider ID matching
 - [ ] **Phase 5: Slack Alerts** - Webhook integration with formatted alerts
 - [ ] **Phase 6: Monitoring Loop** - Polling orchestration and deduplication
 - [ ] **Phase 7: Docker Deployment** - Containerization and deployment
@@ -43,10 +43,15 @@ None
 **Plans**: TBD
 
 ### Phase 4: Event Matching
-**Goal**: Compare events across platforms, detect SportyBet events missing from BetPawa
+**Goal**: Compare events via provider ID matching (SportRadar/GeniusSports IDs), detect missing events
 **Depends on**: Phase 2, Phase 3
-**Research**: Unlikely (standard fuzzy matching libraries)
+**Research**: Unlikely (ID extraction is straightforward)
 **Plans**: TBD
+
+**Matching logic**:
+- Extract provider ID from SportyBet `sr:match:{id}` (strip `11111111` prefix for GeniusSports)
+- Match against BetPawa `widgets[].id` for SPORTRADAR or GENIUSSPORTS types
+- Cross-provider matching supported (SportyBet uses SR, BetPawa uses GS for same event)
 
 ### Phase 5: Slack Alerts
 **Goal**: Webhook integration sending formatted match alerts with teams, league, score, time
