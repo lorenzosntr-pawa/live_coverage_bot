@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from live_coverage_bot.clients.models import ProviderID
+from live_coverage_bot.clients.models import ProviderID, UpcomingEvent
 
 
 class PreMatchCache:
@@ -10,21 +10,33 @@ class PreMatchCache:
 
     Stores provider IDs from BetPawa's pre-match offerings.
     Used to filter alerts - only alert for matches BetPawa intended to offer.
+    Also stores full event data for human-readable logging.
     """
 
     def __init__(self) -> None:
         """Initialize empty cache."""
-        # Map of provider_id -> start_time
+        # Map of provider_id -> start_time for fast lookup
         self._cache: dict[str, datetime] = {}
+        # Full event list for logging
+        self._events: list[UpcomingEvent] = []
         self._last_refresh: datetime | None = None
 
-    def update(self, provider_ids: dict[str, datetime]) -> None:
+    def update(self, events: list[UpcomingEvent]) -> None:
         """Replace cache contents with new data.
 
         Args:
-            provider_ids: Dict mapping provider ID keys to start times.
+            events: List of UpcomingEvent with full details and provider IDs.
         """
-        self._cache = provider_ids.copy()
+        # Store events for logging
+        self._events = events.copy()
+
+        # Build lookup dict from provider IDs
+        self._cache = {}
+        for event in events:
+            for pid in event.provider_ids:
+                key = f"{pid.type.value}:{pid.id}"
+                self._cache[key] = event.start_time
+
         self._last_refresh = datetime.now(tz=UTC)
 
     def was_offered_prematch(self, provider_ids: list[ProviderID]) -> bool:
@@ -55,6 +67,11 @@ class PreMatchCache:
             return True
         age = (datetime.now(tz=UTC) - self._last_refresh).total_seconds()
         return age >= interval_seconds
+
+    @property
+    def events(self) -> list[UpcomingEvent]:
+        """Cached upcoming events for logging."""
+        return self._events
 
     @property
     def size(self) -> int:
