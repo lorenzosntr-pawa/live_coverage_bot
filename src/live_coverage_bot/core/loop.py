@@ -12,6 +12,7 @@ from live_coverage_bot.clients import (
 )
 from live_coverage_bot.config import Settings
 from live_coverage_bot.core.matcher import EventMatcher
+from live_coverage_bot.core.prematch_cache import PreMatchCache
 from live_coverage_bot.core.tracker import AlertTracker
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class MonitoringLoop:
         self._settings = settings
         self._tracker = AlertTracker()
         self._matcher = EventMatcher()
+        self._prematch_cache = PreMatchCache()
 
     async def run(self) -> None:
         """Run the monitoring loop until interrupted.
@@ -98,6 +100,19 @@ class MonitoringLoop:
             )
             return
 
+        # Refresh pre-match cache if needed
+        if self._prematch_cache.needs_refresh(interval_seconds=300):
+            try:
+                prematch_ids = await betpawa.get_upcoming_events(hours_ahead=3)
+                self._prematch_cache.update(prematch_ids)
+                logger.info(
+                    "Pre-match cache refreshed: %d provider IDs",
+                    self._prematch_cache.size,
+                )
+            except BetPawaError as e:
+                logger.warning("Failed to refresh pre-match cache: %s", e)
+                # Continue with stale cache - better than no cache
+
         # Find missing events
         missing_events = self._matcher.find_missing_events(
             sportybet_events, betpawa_events
@@ -113,6 +128,11 @@ class MonitoringLoop:
             # Skip events not yet in-play (no minute set)
             if event.minute is None:
                 logger.debug("Skipping pre-match event: %s", event.event_id)
+                continue
+
+            # Skip events not in pre-match cache (BetPawa never intended to offer)
+            if not self._prematch_cache.was_offered_prematch(event.provider_ids):
+                logger.debug("Skipping event not in pre-match: %s", event.event_id)
                 continue
 
             # Send Slack alert
