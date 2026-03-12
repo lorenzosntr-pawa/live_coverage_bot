@@ -21,6 +21,7 @@ None
 - [x] **Phase 5: Slack Alerts** - Webhook integration with formatted alerts
 - [x] **Phase 6: Monitoring Loop** - Polling orchestration and deduplication
 - [x] **Phase 6.1: Country in Alerts** - INSERTED - Add country name to tournament display
+- [ ] **Phase 6.2: SRL Filter & Provider Info** - INSERTED - Filter SRL matches, add provider info to alerts
 - [ ] **Phase 7: Docker Deployment** - Containerization and deployment
 
 ## Phase Details
@@ -78,16 +79,27 @@ None
 - Extract country from BetPawa competition object
 - Update Slack message format: "Country - Competition | Score: X-X"
 
+### Phase 6.2: SRL Filter & Provider Info (INSERTED)
+**Goal**: Filter out SRL test matches from alerts, add provider type and ID to alert messages
+**Depends on**: Phase 6.1
+**Research**: Unlikely (straightforward filtering and string formatting)
+**Plans**: 1
+
+**Implementation:**
+- Filter out matches where both home AND away team names contain "SRL" (SportyBet test matches)
+- Add provider type (SPORTRADAR/GENIUSSPORTS) to Slack alert message
+- Include provider ID in alert for debugging/reference
+
 ### Phase 7: Docker Deployment
 **Goal**: Dockerfile, docker-compose, environment config for containerized deployment
-**Depends on**: Phase 6
+**Depends on**: Phase 6.2
 **Research**: Unlikely (standard containerization)
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -98,4 +110,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 7
 | 5. Slack Alerts | 1/1 | Complete | 2026-03-12 |
 | 6. Monitoring Loop | 1/1 | Complete | 2026-03-12 |
 | 6.1. Country in Alerts | 1/1 | Complete | 2026-03-12 |
+| 6.2. SRL Filter & Provider Info | 0/1 | Not started | - |
 | 7. Docker Deployment | 0/TBD | Not started | - |

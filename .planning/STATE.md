@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Reliable detection of missing live events in priority leagues — never miss an event that should be on BetPawa.
-**Current focus:** Phase 7 — Docker Deployment (Not started)
+**Current focus:** Phase 6.2 — SRL Filter & Provider Info (Not started)
 
 ## Current Position
 
-Phase: 6.1 of 7 (Country in Alerts) — COMPLETE
-Plan: 1/1 complete in phase
-Status: Phase complete
-Last activity: 2026-03-12 — Completed 6.1-01-PLAN.md
+Phase: 6.2 of 7 (SRL Filter & Provider Info) — NOT STARTED
+Plan: 0/1 in phase
+Status: Ready to execute
+Last activity: 2026-03-12 — Created 6.2-01-PLAN.md
 
 Progress: █████████░ 90%
 
@@ -51,6 +51,12 @@ Recent decisions affecting current work:
 - In-memory set for deduplication (no TTL - events expire naturally)
 - Log and continue on API errors for resilience
 
+### Roadmap Evolution
+
+- Phase 6.2 inserted after Phase 6.1: SRL Filter & Provider Info (URGENT)
+  - Filter out SRL test matches (both team names contain "SRL")
+  - Add provider type and ID to Slack alerts
+
 ### Deferred Issues
 
 None (ISS-001 resolved via Phase 6.1 insertion).
@@ -62,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Completed 6.1-01-PLAN.md — Ready for Phase 7
+Stopped at: Created 6.2-01-PLAN.md — Ready to execute
 Resume file: None
