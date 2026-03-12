@@ -89,7 +89,13 @@ class SlackNotifier:
         else:
             competition_line = event.competition_name
 
-        return f"🔴 *Missing on BetPawa*\n{match_line}\n{competition_line} | Score: {score}"
+        # Build provider line if provider info available
+        provider_line = ""
+        if event.provider_ids:
+            provider = event.provider_ids[0]
+            provider_line = f"\nProvider: {provider.type} #{provider.id}"
+
+        return f"🔴 *Missing on BetPawa*\n{match_line}\n{competition_line} | Score: {score}{provider_line}"
 
     async def close(self) -> None:
         """Close the HTTP client."""
