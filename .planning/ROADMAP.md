@@ -21,7 +21,7 @@ None
 - [x] **Phase 5: Slack Alerts** - Webhook integration with formatted alerts
 - [x] **Phase 6: Monitoring Loop** - Polling orchestration and deduplication
 - [x] **Phase 6.1: Country in Alerts** - INSERTED - Add country name to tournament display
-- [ ] **Phase 6.2: SRL Filter & Provider Info** - INSERTED - Filter SRL matches, add provider info to alerts
+- [x] **Phase 6.2: SRL Filter & Provider Info** - INSERTED - Filter SRL matches, add provider info to alerts
 - [ ] **Phase 7: Docker Deployment** - Containerization and deployment
 
 ## Phase Details
@@ -110,5 +110,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2
 | 5. Slack Alerts | 1/1 | Complete | 2026-03-12 |
 | 6. Monitoring Loop | 1/1 | Complete | 2026-03-12 |
 | 6.1. Country in Alerts | 1/1 | Complete | 2026-03-12 |
-| 6.2. SRL Filter & Provider Info | 0/1 | Not started | - |
+| 6.2. SRL Filter & Provider Info | 1/1 | Complete | 2026-03-12 |
 | 7. Docker Deployment | 0/TBD | Not started | - |
