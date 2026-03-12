@@ -79,6 +79,7 @@ class BetPawaClient:
                                 "eventType": "UPCOMING",
                                 "categories": ["2"],
                                 "zones": {},
+                                "hasOdds": True,
                             },
                             "view": {
                                 "marketTypes": ["3743"],
@@ -274,9 +275,9 @@ class BetPawaClient:
         region = event_data.get("region", {})
         country_name = region.get("name") or None
 
-        # Get minute from results.display.minute
-        results = event_data.get("results", {})
-        display = results.get("display", {})
+        # Get minute from results.display.minute (results can be null for pre-match)
+        results = event_data.get("results") or {}
+        display = results.get("display") or {}
         minute = display.get("minute")
 
         # Extract scores from participantPeriodResults
