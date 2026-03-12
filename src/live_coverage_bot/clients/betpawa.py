@@ -48,6 +48,112 @@ class BetPawaClient:
             },
         )
 
+    async def get_upcoming_events(self, hours_ahead: int = 3) -> dict[str, datetime]:
+        """Fetch upcoming football events from BetPawa pre-match.
+
+        Paginates through all upcoming events and returns provider IDs for events
+        starting within the specified time window.
+
+        Args:
+            hours_ahead: Only include events starting within this many hours.
+
+        Returns:
+            Dict mapping provider ID keys (e.g., "SPORTRADAR:12345") to start times.
+
+        Raises:
+            BetPawaError: If the API request fails.
+        """
+        try:
+            from datetime import timedelta
+
+            cutoff_time = datetime.now(tz=UTC) + timedelta(hours=hours_ahead)
+            all_provider_ids: dict[str, datetime] = {}
+            skip = 0
+            take = 200
+
+            while True:
+                query = {
+                    "queries": [
+                        {
+                            "query": {
+                                "eventType": "UPCOMING",
+                                "categories": ["2"],
+                                "zones": {},
+                            },
+                            "view": {
+                                "marketTypes": ["3743"],
+                            },
+                            "skip": skip,
+                            "take": take,
+                            "sort": {
+                                "competitionPriority": "DESC",
+                            },
+                        }
+                    ]
+                }
+                params = {"q": json.dumps(query)}
+
+                response = await self._client.get(
+                    "/events/lists/by-queries",
+                    params=params,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Parse response
+                responses = data.get("responses", [])
+                if not responses:
+                    break
+
+                event_list = responses[0].get("responses", [])
+                if not event_list:
+                    break
+
+                # Process each event
+                for event_data in event_list:
+                    # Parse start time
+                    start_time_str = event_data.get("startTime", "")
+                    if not start_time_str:
+                        continue
+
+                    try:
+                        start_time = datetime.fromisoformat(
+                            start_time_str.replace("Z", "+00:00")
+                        )
+                    except ValueError:
+                        continue
+
+                    # Filter by time window
+                    if start_time > cutoff_time:
+                        continue
+
+                    # Extract provider IDs
+                    widgets = event_data.get("widgets", [])
+                    provider_ids = self._extract_provider_ids(widgets)
+
+                    # Add to result
+                    for pid in provider_ids:
+                        key = f"{pid.type.value}:{pid.id}"
+                        all_provider_ids[key] = start_time
+
+                # Check if we got fewer events than requested (last page)
+                if len(event_list) < take:
+                    break
+
+                skip += take
+
+            return all_provider_ids
+
+        except httpx.HTTPStatusError as e:
+            logger.error("BetPawa API returned error: %s", e.response.status_code)
+            raise BetPawaError(f"API returned status {e.response.status_code}") from e
+        except httpx.RequestError as e:
+            logger.error("BetPawa API request failed: %s", e)
+            raise BetPawaError(f"Request failed: {e}") from e
+        except Exception as e:
+            logger.error("Unexpected error fetching upcoming events: %s", e)
+            raise BetPawaError(f"Unexpected error: {e}") from e
+
     async def get_live_events(self) -> list[LiveEvent]:
         """Fetch all live football events from BetPawa.
 
