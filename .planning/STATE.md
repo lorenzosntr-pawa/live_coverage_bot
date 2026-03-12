@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 
 ## Current Position
 
-Phase: 6.2 of 7 (SRL Filter & Provider Info) — COMPLETE
+Phase: 6.3 of 7 (In-Play Filter) — COMPLETE
 Plan: 1/1 in phase
 Status: Phase complete
-Last activity: 2026-03-12 — Completed 6.2-01-PLAN.md
+Last activity: 2026-03-12 — Completed 6.3-01-PLAN.md
 
 Progress: █████████░ 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 4.1 min
-- Total execution time: 0.8 hours
+- Total plans completed: 9
+- Average duration: 3.9 min
+- Total execution time: 0.9 hours
 
 **By Phase:**
 
@@ -35,9 +35,10 @@ Progress: █████████░ 90%
 | 06-monitoring-loop | 1 | 4 min | 4 min |
 | 6.1-country-alerts | 1 | 3 min | 3 min |
 | 6.2-srl-filter-provider-info | 1 | 3 min | 3 min |
+| 6.3-in-play-filter | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 3m, 4m, 3m, 3m
+- Last 5 plans: 4m, 3m, 3m, 2m
 - Trend: ↓ (improving)
 
 ## Accumulated Context
@@ -58,6 +59,10 @@ Recent decisions affecting current work:
   - Filter out SRL test matches (both team names contain "SRL")
   - Add provider type and ID to Slack alerts
 
+- Phase 6.3 inserted after Phase 6.2: In-Play Filter (URGENT)
+  - Only alert on matches where minute is set (match has started)
+  - Reduces false positives from timing differences between platforms
+
 ### Deferred Issues
 
 None (ISS-001 resolved via Phase 6.1 insertion).
@@ -69,5 +74,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Completed 6.2-01-PLAN.md — Phase 6.2 complete
+Stopped at: Completed 6.3-01-PLAN.md — Phase 6.3 complete
 Resume file: None
