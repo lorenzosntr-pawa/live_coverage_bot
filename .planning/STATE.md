@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Reliable detection of missing live events in priority leagues — never miss an event that should be on BetPawa.
-**Current focus:** Phase 3 — BetPawa Client (Complete)
+**Current focus:** Phase 6 — Monitoring Loop (Complete)
 
 ## Current Position
 
-Phase: 5 of 7 (Slack Alerts) — COMPLETE
+Phase: 6 of 7 (Monitoring Loop) — COMPLETE
 Plan: 1/1 complete in phase
 Status: Phase complete
-Last activity: 2026-03-12 — Completed 05-01-PLAN.md (Slack Alerts)
+Last activity: 2026-03-12 — Completed 06-01-PLAN.md (Monitoring Loop)
 
-Progress: ██████░░░░ 71%
+Progress: ████████░░ 86%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 4.8 min
-- Total execution time: 0.5 hours
+- Total plans completed: 6
+- Average duration: 4.5 min
+- Total execution time: 0.6 hours
 
 **By Phase:**
 
@@ -32,9 +32,10 @@ Progress: ██████░░░░ 71%
 | 03-betpawa-client | 1+1 FIX | 11 min | 5.5 min |
 | 04-event-matching | 1 | 3 min | 3 min |
 | 05-slack-alerts | 1 | 3 min | 3 min |
+| 06-monitoring-loop | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 5m, 6m, 3m, 3m
+- Last 5 plans: 6m, 3m, 3m, 4m
 - Trend: ↓ (improving)
 
 ## Accumulated Context
@@ -46,6 +47,8 @@ Recent decisions affecting current work:
 
 - Used PrivateAttr for _provider_ids_override (Pydantic v2 compatibility)
 - BetPawa event IDs prefixed with 'bp:' to distinguish from SportyBet
+- In-memory set for deduplication (no TTL - events expire naturally)
+- Log and continue on API errors for resilience
 
 ### Deferred Issues
 
@@ -58,5 +61,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Phase 5 complete — SlackNotifier implemented, ready for Phase 6 planning
+Stopped at: Phase 6 complete — Monitoring loop ready, ready for Phase 7 planning
 Resume file: None
