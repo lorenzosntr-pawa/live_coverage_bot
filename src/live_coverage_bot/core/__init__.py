@@ -2,6 +2,7 @@
 
 from live_coverage_bot.core.loop import MonitoringLoop
 from live_coverage_bot.core.matcher import EventMatcher
+from live_coverage_bot.core.prematch_cache import PreMatchCache
 from live_coverage_bot.core.tracker import AlertTracker
 
-__all__ = ["AlertTracker", "EventMatcher", "MonitoringLoop"]
+__all__ = ["AlertTracker", "EventMatcher", "MonitoringLoop", "PreMatchCache"]
