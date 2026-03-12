@@ -23,6 +23,7 @@ None
 - [x] **Phase 6.1: Country in Alerts** - INSERTED - Add country name to tournament display
 - [x] **Phase 6.2: SRL Filter & Provider Info** - INSERTED - Filter SRL matches, add provider info to alerts
 - [x] **Phase 6.3: In-Play Filter** - INSERTED - Only alert on matches where minute is set
+- [x] **Phase 6.4: Pre-match Cache** - INSERTED - Only alert for matches BetPawa had pre-match
 - [ ] **Phase 7: Docker Deployment** - Containerization and deployment
 
 ## Phase Details
@@ -102,16 +103,28 @@ None
 - Matches showing as "live" but not yet started won't trigger alerts
 - Prevents false positives when BetPawa switches to live later than SportyBet
 
+### Phase 6.4: Pre-match Cache (INSERTED)
+**Goal**: Only alert for matches that BetPawa offered during pre-match, reducing false positives for matches BetPawa never intended to cover
+**Depends on**: Phase 6.3
+**Research**: Likely (need to discover BetPawa pre-match API endpoint)
+**Plans**: TBD
+
+**Implementation:**
+- Discover/implement BetPawa pre-match API endpoint
+- Cache pre-match offerings with match IDs and kickoff times
+- On live check: only alert if match was in pre-match cache
+- Handle cache expiry (matches expire after kickoff + buffer)
+
 ### Phase 7: Docker Deployment
 **Goal**: Dockerfile, docker-compose, environment config for containerized deployment
-**Depends on**: Phase 6.3
+**Depends on**: Phase 6.4
 **Research**: Unlikely (standard containerization)
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 6.3 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 6.3 → 6.4 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -124,4 +137,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2
 | 6.1. Country in Alerts | 1/1 | Complete | 2026-03-12 |
 | 6.2. SRL Filter & Provider Info | 1/1 | Complete | 2026-03-12 |
 | 6.3. In-Play Filter | 1/1 | Complete | 2026-03-12 |
+| 6.4. Pre-match Cache | 1/1 | Complete | 2026-03-12 |
 | 7. Docker Deployment | 0/TBD | Not started | - |
