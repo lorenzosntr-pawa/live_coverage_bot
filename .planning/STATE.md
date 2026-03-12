@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 
 ## Current Position
 
-Phase: 6.4 of 7 (Pre-match Cache) — COMPLETE
+Phase: 6.5 of 7 (Human-Readable Logging) — COMPLETE
 Plan: 1/1 in phase
 Status: Phase complete
-Last activity: 2026-03-12 — Completed 6.4-01-PLAN.md
+Last activity: 2026-03-12 — Completed 6.5-01-PLAN.md
 
 Progress: ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 3.8 min
-- Total execution time: 1.0 hours
+- Total plans completed: 11
+- Average duration: 3.7 min
+- Total execution time: 1.1 hours
 
 **By Phase:**
 
@@ -37,9 +37,10 @@ Progress: ██████████ 100%
 | 6.2-srl-filter-provider-info | 1 | 3 min | 3 min |
 | 6.3-in-play-filter | 1 | 2 min | 2 min |
 | 6.4-pre-match-cache | 1 | 3 min | 3 min |
+| 6.5-human-readable-logging | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 3m, 3m, 2m, 3m
+- Last 5 plans: 3m, 2m, 3m, 3m
 - Trend: → (stable)
 
 ## Accumulated Context
@@ -69,6 +70,10 @@ Recent decisions affecting current work:
   - Eliminates false positives for matches BetPawa never intended to cover
   - Requires discovering BetPawa pre-match API endpoint
 
+- Phase 6.5 inserted after Phase 6.4: Human-Readable Logging (URGENT)
+  - Replace verbose httpx logs with readable tournament/event summaries
+  - Show events grouped by tournament with teams, scores, and minutes
+
 ### Deferred Issues
 
 None (ISS-001 resolved via Phase 6.1 insertion).
@@ -80,5 +85,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Completed 6.4-01-PLAN.md — Phase 6.4 complete
+Stopped at: Completed 6.5-01-PLAN.md — Phase 6.5 complete
 Resume file: None

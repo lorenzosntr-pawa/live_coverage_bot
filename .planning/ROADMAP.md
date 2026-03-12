@@ -24,6 +24,7 @@ None
 - [x] **Phase 6.2: SRL Filter & Provider Info** - INSERTED - Filter SRL matches, add provider info to alerts
 - [x] **Phase 6.3: In-Play Filter** - INSERTED - Only alert on matches where minute is set
 - [x] **Phase 6.4: Pre-match Cache** - INSERTED - Only alert for matches BetPawa had pre-match
+- [x] **Phase 6.5: Human-Readable Logging** - INSERTED - Log tournaments and events in readable format
 - [ ] **Phase 7: Docker Deployment** - Containerization and deployment
 
 ## Phase Details
@@ -115,16 +116,34 @@ None
 - On live check: only alert if match was in pre-match cache
 - Handle cache expiry (matches expire after kickoff + buffer)
 
+### Phase 6.5: Human-Readable Logging (INSERTED)
+**Goal**: Make poll cycle logs show human-readable tournament and event lists instead of raw HTTP details
+**Depends on**: Phase 6.4
+**Research**: Unlikely (straightforward logging improvements)
+**Plans**: TBD
+
+**Implementation:**
+- Suppress verbose httpx request logging (set to WARNING or use custom filter)
+- Log grouped summary by tournament: "England - Premier League: 3 events"
+- Log individual events with teams, score, minute: "Man Utd vs Liverpool | 2-1 | 45'"
+- Separate sections for SportyBet, BetPawa, and Missing events
+- Keep summary line: "Poll: 11 SportyBet, 8 BetPawa, 3 missing, 0 alerts"
+- Pre-match cache refresh: log readable event list with teams, tournament, kickoff time
+  - Return full event data from get_upcoming_events() not just provider IDs
+  - Example: "Cached: Arsenal vs Chelsea (England - Premier League) @ 15:00"
+  - Group by tournament for readability
+  - IMPORTANT: Preserve both SPORTRADAR and GENIUSSPORTS IDs per event (same match can have different provider types between SportyBet and BetPawa)
+
 ### Phase 7: Docker Deployment
 **Goal**: Dockerfile, docker-compose, environment config for containerized deployment
-**Depends on**: Phase 6.4
+**Depends on**: Phase 6.5
 **Research**: Unlikely (standard containerization)
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 6.3 → 6.4 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -138,4 +157,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2
 | 6.2. SRL Filter & Provider Info | 1/1 | Complete | 2026-03-12 |
 | 6.3. In-Play Filter | 1/1 | Complete | 2026-03-12 |
 | 6.4. Pre-match Cache | 1/1 | Complete | 2026-03-12 |
+| 6.5. Human-Readable Logging | 1/1 | Complete | 2026-03-12 |
 | 7. Docker Deployment | 0/TBD | Not started | - |
