@@ -1,6 +1,6 @@
 """Event matching engine for cross-platform comparison."""
 
-from live_coverage_bot.clients.models import LiveEvent, ProviderID
+from live_coverage_bot.clients.models import LiveEvent
 
 
 class EventMatcher:
