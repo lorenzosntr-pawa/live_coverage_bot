@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A live event coverage comparison tool that monitors SportyBet and BetPawa for live football matches, alerting via Slack when events are live on SportyBet but missing from BetPawa. Designed for near real-time detection (30-60s) with Docker deployment.
+A live event coverage comparison tool that monitors SportyBet and BetPawa for live football matches, alerting via Slack when events are live on SportyBet but missing from BetPawa. Features provider ID matching, pre-match cache filtering, and human-readable logging.
 
 ## Core Value
 
@@ -12,16 +12,17 @@ Reliable detection of missing live events in priority leagues — never miss an 
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ SportyBet live event monitoring (30s polling, priority leagues filter) — v1.0
+- ✓ BetPawa live event monitoring (matching polling frequency) — v1.0
+- ✓ Event comparison engine to detect SportyBet events missing from BetPawa — v1.0
+- ✓ Slack webhook alerts with match info (teams, league, score, time, provider) — v1.0
+- ✓ Configurable priority leagues list (YAML config) — v1.0
+- ✓ Duplicate alert prevention (in-memory tracking) — v1.0
+- ✓ Pre-match cache filtering (only alert for matches BetPawa offered pre-match) — v1.0
+- ✓ Human-readable logging grouped by tournament — v1.0
 
 ### Active
 
-- [ ] SportyBet live event monitoring (30s polling, priority leagues filter)
-- [ ] BetPawa live event monitoring (matching polling frequency)
-- [ ] Event comparison engine to detect SportyBet events missing from BetPawa
-- [ ] Slack webhook alerts with match info (teams, league, score, time) and SportyBet link
-- [ ] Configurable priority leagues list (YAML/JSON config)
-- [ ] Duplicate alert prevention (light tracking to avoid re-alerting same event)
 - [ ] Docker container deployment
 
 ### Out of Scope
@@ -31,40 +32,24 @@ Reliable detection of missing live events in priority leagues — never miss an 
 - Other sports — football only for v1
 - Full Slack bot with slash commands — webhook only for v1
 - Historical data persistence/analytics — only tracking needed for deduplication
+- SportyBet link in alerts — URL pattern not yet established
 
 ## Context
 
-**Reference code**: User provided SportyBet scraper code as reference architecture:
-- Async Python with aiohttp for API calls
-- SQLite for data storage
-- Configurable tournament filtering via YAML
-- Discovery loop (30s) + polling loop (12s) pattern
-- Clean separation: api_client, scraper, processor, config modules
+Shipped v1.0 with 1,485 LOC Python (16 files).
+Tech stack: httpx, Pydantic v2, pydantic-settings, PyYAML.
+Run via: `python -m live_coverage_bot`
 
-**BetPawa API** (documented in `betpawa_api_endpoints/`):
-- Endpoint: `GET https://www.betpawa.ng/api/sportsbook/v3/events/lists/by-queries`
-- Query param `q` with JSON: `{"queries":[{"query":{"eventType":"LIVE","categories":["2"]}}]}`
-- Headers: `x-pawa-brand: betpawa-nigeria`, `x-pawa-language: en`, `devicetype: web`
-- Response: `responses[].responses[]` array of events
-- Event fields: `id`, `name`, `competition.{id,name}`, `region.name`, `participants[].name`, `results.display.minute`, `startTime`
+**API Integrations:**
+- SportyBet: Live events via `/liveOrPrematchEvents`, provider ID in event_id
+- BetPawa: Live events via `/api/sportsbook/v3/events/lists/by-queries`, provider ID in widgets[]
+- Slack: Incoming webhook for formatted alerts
 
-**SportyBet API** (from reference code):
-- Endpoint: `GET /liveOrPrematchEvents?sportId=sr:sport:1` (soccer)
-- Event detail: `GET /event?eventId={id}`
-- Response: `data[].events[].eventId`, tournament filtering by `id`
-
-**Event matching strategy**: Provider ID matching (exact, no fuzzy logic needed):
-- SportyBet event IDs encode provider: `sr:match:{id}` for SportRadar, `sr:match:11111111{id}` for GeniusSports
-- BetPawa `widgets[]` array contains both `SPORTRADAR` and `GENIUSSPORTS` IDs when available
-- Extract numeric ID from SportyBet, check against BetPawa widget IDs
-- Works even when platforms use different providers for same event (cross-provider matching)
-- Fallback to team name + start time only if widget IDs missing
-
-**Architecture approach**: Build on patterns from SportyBet scraper — async Python, similar polling architecture, extend to support dual-source monitoring and comparison.
+**Event Matching:** Cross-platform comparison via SPORTRADAR/GENIUSSPORTS provider IDs extracted from both platforms. Events matched by (type, id) tuple.
 
 ## Constraints
 
-- **Runtime**: Docker container deployment
+- **Runtime**: Docker container deployment (pending)
 - **Alert latency**: Near real-time detection (30-60 seconds from event going live)
 - **Slack integration**: Incoming webhook (no bot token required for v1)
 
@@ -72,11 +57,13 @@ Reliable detection of missing live events in priority leagues — never miss an 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Fixed league list for v1 | Simplify scope, add dynamic flagging later | — Pending |
-| Webhook over full Slack bot | Faster to ship, bot features can layer on | — Pending |
-| Light tracking over full DB | Only need deduplication, not analytics | — Pending |
-| Python + async | Match reference code patterns, proven for this use case | — Pending |
-| Provider ID matching over fuzzy names | Both platforms expose SportRadar/GeniusSports IDs, exact matching possible | Confirmed |
+| Fixed league list for v1 | Simplify scope, add dynamic flagging later | ✓ Good |
+| Webhook over full Slack bot | Faster to ship, bot features can layer on | ✓ Good |
+| In-memory deduplication | Events expire naturally when no longer live | ✓ Good |
+| Python + async (httpx) | Modern async HTTP with better typing than aiohttp | ✓ Good |
+| Provider ID matching | Exact matching via SportRadar/GeniusSports IDs | ✓ Good |
+| Pre-match cache | Eliminates false positives for unintended events | ✓ Good |
+| Pydantic PrivateAttr | Enables provider ID override for BetPawa events | ✓ Good |
 
 ---
-*Last updated: 2026-03-11 after initialization*
+*Last updated: 2026-03-12 after v1.0 milestone*
