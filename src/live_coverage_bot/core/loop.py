@@ -110,6 +110,11 @@ class MonitoringLoop:
                 logger.debug("Already alerted: %s", event.event_id)
                 continue
 
+            # Skip events not yet in-play (no minute set)
+            if event.minute is None:
+                logger.debug("Skipping pre-match event: %s", event.event_id)
+                continue
+
             # Send Slack alert
             success = await slack.send_missing_event_alert(event)
             if success:
