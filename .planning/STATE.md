@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Reliable detection of missing live events in priority leagues — never miss an event that should be on BetPawa.
-**Current focus:** Phase 6 — Monitoring Loop (Complete)
+**Current focus:** Phase 7 — Docker Deployment (Not started)
 
 ## Current Position
 
-Phase: 6 of 7 (Monitoring Loop) — COMPLETE
+Phase: 6.1 of 7 (Country in Alerts) — COMPLETE
 Plan: 1/1 complete in phase
 Status: Phase complete
-Last activity: 2026-03-12 — Completed 06-01-PLAN.md (Monitoring Loop)
+Last activity: 2026-03-12 — Completed 6.1-01-PLAN.md
 
-Progress: ████████░░ 86%
+Progress: █████████░ 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 4.5 min
-- Total execution time: 0.6 hours
+- Total plans completed: 7
+- Average duration: 4.3 min
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
@@ -33,9 +33,10 @@ Progress: ████████░░ 86%
 | 04-event-matching | 1 | 3 min | 3 min |
 | 05-slack-alerts | 1 | 3 min | 3 min |
 | 06-monitoring-loop | 1 | 4 min | 4 min |
+| 6.1-country-alerts | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 6m, 3m, 3m, 4m
+- Last 5 plans: 3m, 3m, 4m, 3m
 - Trend: ↓ (improving)
 
 ## Accumulated Context
@@ -52,7 +53,7 @@ Recent decisions affecting current work:
 
 ### Deferred Issues
 
-None yet.
+None (ISS-001 resolved via Phase 6.1 insertion).
 
 ### Blockers/Concerns
 
@@ -61,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Phase 6 complete — Monitoring loop ready, ready for Phase 7 planning
+Stopped at: Completed 6.1-01-PLAN.md — Ready for Phase 7
 Resume file: None

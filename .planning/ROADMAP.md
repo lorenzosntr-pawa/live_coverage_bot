@@ -20,6 +20,7 @@ None
 - [x] **Phase 4: Event Matching** - Comparison engine with provider ID matching
 - [x] **Phase 5: Slack Alerts** - Webhook integration with formatted alerts
 - [x] **Phase 6: Monitoring Loop** - Polling orchestration and deduplication
+- [x] **Phase 6.1: Country in Alerts** - INSERTED - Add country name to tournament display
 - [ ] **Phase 7: Docker Deployment** - Containerization and deployment
 
 ## Phase Details
@@ -65,6 +66,18 @@ None
 **Research**: Unlikely (async polling pattern from reference code)
 **Plans**: TBD
 
+### Phase 6.1: Country in Alerts (INSERTED)
+**Goal**: Add country name to tournament display in Slack alerts for better context
+**Depends on**: Phase 6
+**Research**: Likely (need to verify API response fields for country data)
+**Plans**: 1
+
+**Implementation:**
+- Add `country_name` field to `LiveEvent` model
+- Extract country from SportyBet tournament object (check for category field)
+- Extract country from BetPawa competition object
+- Update Slack message format: "Country - Competition | Score: X-X"
+
 ### Phase 7: Docker Deployment
 **Goal**: Dockerfile, docker-compose, environment config for containerized deployment
 **Depends on**: Phase 6
@@ -74,7 +87,7 @@ None
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -84,4 +97,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Event Matching | 1/1 | Complete | 2026-03-12 |
 | 5. Slack Alerts | 1/1 | Complete | 2026-03-12 |
 | 6. Monitoring Loop | 1/1 | Complete | 2026-03-12 |
+| 6.1. Country in Alerts | 1/1 | Complete | 2026-03-12 |
 | 7. Docker Deployment | 0/TBD | Not started | - |
