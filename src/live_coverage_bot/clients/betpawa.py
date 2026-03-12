@@ -8,7 +8,12 @@ from typing import Any, Self
 
 import httpx
 
-from live_coverage_bot.clients.models import LiveEvent, ProviderID, ProviderType
+from live_coverage_bot.clients.models import (
+    LiveEvent,
+    ProviderID,
+    ProviderType,
+    UpcomingEvent,
+)
 from live_coverage_bot.config.models import BetPawaConfig
 
 logger = logging.getLogger(__name__)
@@ -48,17 +53,17 @@ class BetPawaClient:
             },
         )
 
-    async def get_upcoming_events(self, hours_ahead: int = 3) -> dict[str, datetime]:
+    async def get_upcoming_events(self, hours_ahead: int = 3) -> list[UpcomingEvent]:
         """Fetch upcoming football events from BetPawa pre-match.
 
-        Paginates through all upcoming events and returns provider IDs for events
-        starting within the specified time window.
+        Paginates through all upcoming events and returns full event data
+        for human-readable logging and provider ID matching.
 
         Args:
             hours_ahead: Only include events starting within this many hours.
 
         Returns:
-            Dict mapping provider ID keys (e.g., "SPORTRADAR:12345") to start times.
+            List of UpcomingEvent with full details and all provider IDs.
 
         Raises:
             BetPawaError: If the API request fails.
@@ -67,9 +72,9 @@ class BetPawaClient:
             from datetime import timedelta
 
             cutoff_time = datetime.now(tz=UTC) + timedelta(hours=hours_ahead)
-            all_provider_ids: dict[str, datetime] = {}
+            events: list[UpcomingEvent] = []
             skip = 0
-            take = 200
+            take = 100
 
             while True:
                 query = {
@@ -128,14 +133,39 @@ class BetPawaClient:
                     if start_time > cutoff_time:
                         continue
 
-                    # Extract provider IDs
+                    # Extract team names from participants
+                    participants = event_data.get("participants", [])
+                    home_team = ""
+                    away_team = ""
+                    for participant in participants:
+                        position = participant.get("position")
+                        name = participant.get("name", "")
+                        if position == 1:
+                            home_team = name
+                        elif position == 2:
+                            away_team = name
+
+                    # Get competition and region
+                    competition = event_data.get("competition") or {}
+                    competition_name = competition.get("name", "")
+                    region = event_data.get("region") or {}
+                    country_name = region.get("name") or None
+
+                    # Extract ALL provider IDs
                     widgets = event_data.get("widgets", [])
                     provider_ids = self._extract_provider_ids(widgets)
 
-                    # Add to result
-                    for pid in provider_ids:
-                        key = f"{pid.type.value}:{pid.id}"
-                        all_provider_ids[key] = start_time
+                    # Create UpcomingEvent with full data
+                    events.append(
+                        UpcomingEvent(
+                            home_team=home_team,
+                            away_team=away_team,
+                            competition_name=competition_name,
+                            country_name=country_name,
+                            start_time=start_time,
+                            provider_ids=provider_ids,
+                        )
+                    )
 
                 # Check if we got fewer events than requested (last page)
                 if len(event_list) < take:
@@ -143,7 +173,7 @@ class BetPawaClient:
 
                 skip += take
 
-            return all_provider_ids
+            return events
 
         except httpx.HTTPStatusError as e:
             logger.error("BetPawa API returned error: %s", e.response.status_code)
@@ -266,13 +296,13 @@ class BetPawaClient:
             elif position == 2:
                 away_team = name
 
-        # Get competition info
-        competition = event_data.get("competition", {})
+        # Get competition info (use 'or {}' to handle explicit null values)
+        competition = event_data.get("competition") or {}
         competition_id = str(competition.get("id", ""))
         competition_name = competition.get("name", "")
 
-        # Get country name from region
-        region = event_data.get("region", {})
+        # Get country name from region (use 'or {}' to handle explicit null values)
+        region = event_data.get("region") or {}
         country_name = region.get("name") or None
 
         # Get minute from results.display.minute (results can be null for pre-match)

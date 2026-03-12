@@ -20,6 +20,20 @@ class ProviderID(BaseModel):
     id: str
 
 
+class UpcomingEvent(BaseModel):
+    """Upcoming event data from BetPawa pre-match API.
+
+    Contains full event details for human-readable logging during cache refresh.
+    """
+
+    home_team: str
+    away_team: str
+    competition_name: str
+    country_name: str | None = None
+    start_time: datetime
+    provider_ids: list["ProviderID"]  # Preserves BOTH SPORTRADAR and GENIUSSPORTS
+
+
 class LiveEvent(BaseModel):
     """Live event data from betting platform APIs.
 
