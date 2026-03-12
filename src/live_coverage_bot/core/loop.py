@@ -11,6 +11,7 @@ from live_coverage_bot.clients import (
     SportyBetError,
 )
 from live_coverage_bot.config import Settings
+from live_coverage_bot.core.formatter import format_poll_summary, format_prematch_cache
 from live_coverage_bot.core.matcher import EventMatcher
 from live_coverage_bot.core.prematch_cache import PreMatchCache
 from live_coverage_bot.core.tracker import AlertTracker
@@ -103,11 +104,10 @@ class MonitoringLoop:
         # Refresh pre-match cache if needed
         if self._prematch_cache.needs_refresh(interval_seconds=300):
             try:
-                prematch_ids = await betpawa.get_upcoming_events(hours_ahead=3)
-                self._prematch_cache.update(prematch_ids)
+                prematch_events = await betpawa.get_upcoming_events(hours_ahead=3)
+                self._prematch_cache.update(prematch_events)
                 logger.info(
-                    "Pre-match cache refreshed: %d provider IDs",
-                    self._prematch_cache.size,
+                    "\n%s", format_prematch_cache(self._prematch_cache.events)
                 )
             except BetPawaError as e:
                 logger.warning("Failed to refresh pre-match cache: %s", e)
@@ -144,10 +144,10 @@ class MonitoringLoop:
                 # Don't mark as alerted on failure - will retry next cycle
                 logger.warning("Failed to alert for event: %s", event.event_id)
 
+        # Log human-readable poll summary
         logger.info(
-            "Poll cycle: %d SportyBet, %d BetPawa, %d missing, %d new alerts",
-            len(sportybet_events),
-            len(betpawa_events),
-            len(missing_events),
-            alerted_count,
+            "\n%s",
+            format_poll_summary(
+                sportybet_events, betpawa_events, missing_events, alerted_count
+            ),
         )
