@@ -150,6 +150,11 @@ class SportyBetClient:
         home_team = event_data.get("homeTeamName", "")
         away_team = event_data.get("awayTeamName", "")
 
+        # Filter SRL test matches (both teams contain "SRL")
+        if "SRL" in home_team.upper() and "SRL" in away_team.upper():
+            logger.debug("Skipping SRL test match: %s vs %s", home_team, away_team)
+            return None
+
         # Get score from setScore field (format: "1:0" or "1-0")
         set_score = event_data.get("setScore", "")
         home_score: int | None = None
