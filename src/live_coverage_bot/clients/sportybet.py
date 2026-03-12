@@ -106,11 +106,12 @@ class SportyBetClient:
         for tournament in data.get("data", []):
             competition_id = tournament.get("id", "")
             competition_name = tournament.get("name", "")
+            country_name = tournament.get("categoryName") or None
 
             for event_data in tournament.get("events", []):
                 try:
                     event = self._parse_single_event(
-                        event_data, competition_id, competition_name
+                        event_data, competition_id, competition_name, country_name
                     )
                     if event:
                         events.append(event)
@@ -124,7 +125,11 @@ class SportyBetClient:
         return events
 
     def _parse_single_event(
-        self, event_data: dict[str, Any], competition_id: str, competition_name: str
+        self,
+        event_data: dict[str, Any],
+        competition_id: str,
+        competition_name: str,
+        country_name: str | None,
     ) -> LiveEvent | None:
         """Parse a single event from API response.
 
@@ -132,6 +137,7 @@ class SportyBetClient:
             event_data: Event data from API.
             competition_id: Tournament/competition ID.
             competition_name: Tournament/competition name.
+            country_name: Country/category name from tournament.
 
         Returns:
             Parsed LiveEvent or None if parsing fails.
@@ -177,6 +183,7 @@ class SportyBetClient:
             away_team=away_team,
             competition_id=competition_id,
             competition_name=competition_name,
+            country_name=country_name,
             minute=minute,
             home_score=home_score,
             away_score=away_score,

@@ -32,6 +32,7 @@ class LiveEvent(BaseModel):
     away_team: str
     competition_id: str
     competition_name: str
+    country_name: str | None = None
     minute: str | None = None  # Match minute if live
     home_score: int | None = None
     away_score: int | None = None
