@@ -4,7 +4,7 @@ import asyncio
 import logging
 import sys
 
-from live_coverage_bot.config import Settings
+from live_coverage_bot.config import load_config
 from live_coverage_bot.core import MonitoringLoop
 
 
@@ -23,7 +23,7 @@ def main() -> int:
     logger = logging.getLogger(__name__)
 
     try:
-        settings = Settings()
+        settings = load_config()
     except Exception as e:
         logger.error("Failed to load settings: %s", e)
         return 1
