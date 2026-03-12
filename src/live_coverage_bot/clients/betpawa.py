@@ -164,6 +164,10 @@ class BetPawaClient:
         competition_id = str(competition.get("id", ""))
         competition_name = competition.get("name", "")
 
+        # Get country name from region
+        region = event_data.get("region", {})
+        country_name = region.get("name") or None
+
         # Get minute from results.display.minute
         results = event_data.get("results", {})
         display = results.get("display", {})
@@ -191,6 +195,7 @@ class BetPawaClient:
             away_team=away_team,
             competition_id=competition_id,
             competition_name=competition_name,
+            country_name=country_name,
             minute=minute,
             home_score=home_score,
             away_score=away_score,
