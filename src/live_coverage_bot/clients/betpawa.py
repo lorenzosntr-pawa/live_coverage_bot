@@ -59,13 +59,23 @@ class BetPawaClient:
         """
         try:
             # Build query JSON for live football events (category 2 = football)
+            # Query format must match BetPawa's expected structure exactly
             query = {
                 "queries": [
                     {
                         "query": {
                             "eventType": "LIVE",
                             "categories": ["2"],
-                        }
+                            "zones": {},
+                        },
+                        "view": {
+                            "marketTypes": ["3743"],
+                        },
+                        "skip": 0,
+                        "take": 100,
+                        "sort": {
+                            "competitionPriority": "DESC",
+                        },
                     }
                 ]
             }
