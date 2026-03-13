@@ -15,8 +15,8 @@ class PreMatchCache:
 
     def __init__(self) -> None:
         """Initialize empty cache."""
-        # Map of provider_id -> start_time for fast lookup
-        self._cache: dict[str, datetime] = {}
+        # Map of provider_id_key -> betpawa_event_id for fast lookup
+        self._cache: dict[str, str] = {}
         # Full event list for logging
         self._events: list[UpcomingEvent] = []
         self._last_refresh: datetime | None = None
@@ -30,12 +30,12 @@ class PreMatchCache:
         # Store events for logging
         self._events = events.copy()
 
-        # Build lookup dict from provider IDs
+        # Build lookup dict from provider IDs -> BetPawa event ID
         self._cache = {}
         for event in events:
             for pid in event.provider_ids:
                 key = f"{pid.type.value}:{pid.id}"
-                self._cache[key] = event.start_time
+                self._cache[key] = event.event_id
 
         self._last_refresh = datetime.now(tz=UTC)
 
@@ -53,6 +53,21 @@ class PreMatchCache:
             if key in self._cache:
                 return True
         return False
+
+    def get_betpawa_event_id(self, provider_ids: list[ProviderID]) -> str | None:
+        """Get the BetPawa event ID for given provider IDs.
+
+        Args:
+            provider_ids: List of provider IDs to look up.
+
+        Returns:
+            BetPawa event ID if found, None otherwise.
+        """
+        for pid in provider_ids:
+            key = f"{pid.type.value}:{pid.id}"
+            if key in self._cache:
+                return self._cache[key]
+        return None
 
     def needs_refresh(self, interval_seconds: int = 300) -> bool:
         """Check if cache needs refreshing.

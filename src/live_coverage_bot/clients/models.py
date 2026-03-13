@@ -26,6 +26,7 @@ class UpcomingEvent(BaseModel):
     Contains full event details for human-readable logging during cache refresh.
     """
 
+    event_id: str  # BetPawa event ID (without bp: prefix)
     home_team: str
     away_team: str
     competition_name: str

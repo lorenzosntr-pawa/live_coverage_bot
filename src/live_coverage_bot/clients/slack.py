@@ -33,16 +33,19 @@ class SlackNotifier:
         self._config = config
         self._client = httpx.AsyncClient(timeout=10.0)
 
-    async def send_missing_event_alert(self, event: LiveEvent) -> bool:
+    async def send_missing_event_alert(
+        self, event: LiveEvent, betpawa_event_id: str | None = None
+    ) -> bool:
         """Send an alert for a missing event to Slack.
 
         Args:
             event: The live event that is missing from BetPawa.
+            betpawa_event_id: Optional BetPawa event ID from pre-match cache.
 
         Returns:
             True if the alert was sent successfully, False otherwise.
         """
-        message = self._format_message(event)
+        message = self._format_message(event, betpawa_event_id)
 
         try:
             response = await self._client.post(
@@ -63,11 +66,14 @@ class SlackNotifier:
             logger.error("Failed to send Slack alert: %s", e)
             return False
 
-    def _format_message(self, event: LiveEvent) -> str:
+    def _format_message(
+        self, event: LiveEvent, betpawa_event_id: str | None = None
+    ) -> str:
         """Format event data into a Slack message.
 
         Args:
             event: The live event to format.
+            betpawa_event_id: Optional BetPawa event ID from pre-match cache.
 
         Returns:
             Formatted message string with mrkdwn formatting.
@@ -95,7 +101,12 @@ class SlackNotifier:
             provider = event.provider_ids[0]
             provider_line = f"\nProvider: {provider.type} #{provider.id}"
 
-        return f"🔴 *Missing on BetPawa*\n{match_line}\n{competition_line} | Score: {score}{provider_line}"
+        # Build BetPawa ID line if available
+        betpawa_line = ""
+        if betpawa_event_id:
+            betpawa_line = f"\nBetPawa ID: {betpawa_event_id}"
+
+        return f"🔴 *Missing on BetPawa*\n{match_line}\n{competition_line} | Score: {score}{provider_line}{betpawa_line}"
 
     async def close(self) -> None:
         """Close the HTTP client."""

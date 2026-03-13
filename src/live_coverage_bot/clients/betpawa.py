@@ -117,6 +117,11 @@ class BetPawaClient:
 
                 # Process each event
                 for event_data in event_list:
+                    # Get event ID
+                    event_id = event_data.get("id", "")
+                    if not event_id:
+                        continue
+
                     # Parse start time
                     start_time_str = event_data.get("startTime", "")
                     if not start_time_str:
@@ -158,6 +163,7 @@ class BetPawaClient:
                     # Create UpcomingEvent with full data
                     events.append(
                         UpcomingEvent(
+                            event_id=str(event_id),
                             home_team=home_team,
                             away_team=away_team,
                             competition_name=competition_name,

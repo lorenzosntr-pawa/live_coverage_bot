@@ -135,8 +135,13 @@ class MonitoringLoop:
                 logger.debug("Skipping event not in pre-match: %s", event.event_id)
                 continue
 
+            # Look up BetPawa event ID from pre-match cache
+            betpawa_event_id = self._prematch_cache.get_betpawa_event_id(
+                event.provider_ids
+            )
+
             # Send Slack alert
-            success = await slack.send_missing_event_alert(event)
+            success = await slack.send_missing_event_alert(event, betpawa_event_id)
             if success:
                 self._tracker.mark_alerted(event.event_id)
                 alerted_count += 1
