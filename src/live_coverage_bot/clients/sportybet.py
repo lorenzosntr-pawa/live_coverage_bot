@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Self
 
 import httpx
 
-from live_coverage_bot.clients.models import LiveEvent
+from live_coverage_bot.clients.models import LiveEvent, ProviderID, ProviderType
 from live_coverage_bot.config.models import SportyBetConfig
 
 logger = logging.getLogger(__name__)
@@ -183,7 +183,10 @@ class SportyBetClient:
         start_time_ms = event_data.get("estimateStartTime", 0)
         start_time = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
 
-        return LiveEvent(
+        # Extract provider IDs from liveSource field
+        provider_ids = self._extract_live_source(event_data)
+
+        event = LiveEvent(
             event_id=event_id,
             home_team=home_team,
             away_team=away_team,
@@ -195,6 +198,49 @@ class SportyBetClient:
             away_score=away_score,
             start_time=start_time,
         )
+
+        # Set provider IDs from liveSource (overrides event_id parsing)
+        if provider_ids:
+            event._provider_ids_override = provider_ids
+
+        return event
+
+    def _extract_live_source(self, event_data: dict[str, Any]) -> list[ProviderID]:
+        """Extract provider IDs from eventSource.liveSource field.
+
+        Args:
+            event_data: Event data from API.
+
+        Returns:
+            List of ProviderID objects extracted from liveSource.
+        """
+        event_source = event_data.get("eventSource") or {}
+        live_source = event_source.get("liveSource") or {}
+        source_type = live_source.get("sourceType", "")
+        source_id = live_source.get("sourceId", "")
+
+        if not source_type or not source_id:
+            return []
+
+        # Map SportyBet source types to our ProviderType enum
+        type_mapping = {
+            "BET_RADAR": ProviderType.SPORTRADAR,
+            "BETRADAR": ProviderType.SPORTRADAR,
+            "BET_GENIUS": ProviderType.GENIUSSPORTS,
+            "GENIUS_SPORTS": ProviderType.GENIUSSPORTS,
+            "GENIUSSPORTS": ProviderType.GENIUSSPORTS,
+        }
+
+        provider_type = type_mapping.get(source_type.upper())
+        if provider_type:
+            # Strip 11111111 prefix from GeniusSports IDs (they add 8 ones)
+            source_id_str = str(source_id)
+            if provider_type == ProviderType.GENIUSSPORTS and source_id_str.startswith("11111111"):
+                source_id_str = source_id_str[8:]
+            return [ProviderID(type=provider_type, id=source_id_str)]
+
+        logger.debug("Unknown liveSource type: %s", source_type)
+        return []
 
     async def close(self) -> None:
         """Close the HTTP client."""
