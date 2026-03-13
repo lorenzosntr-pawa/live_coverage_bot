@@ -97,9 +97,10 @@ class SportyBetClient:
             data: Raw JSON response from SportyBet API.
 
         Returns:
-            List of parsed LiveEvent models.
+            List of parsed LiveEvent models (deduplicated by event_id).
         """
-        events: list[LiveEvent] = []
+        # Use dict to deduplicate - same event can appear in multiple tournaments
+        events_by_id: dict[str, LiveEvent] = {}
 
         # Response structure: data[] contains tournaments/leagues
         # Each tournament has events[] array
@@ -113,8 +114,8 @@ class SportyBetClient:
                     event = self._parse_single_event(
                         event_data, competition_id, competition_name, country_name
                     )
-                    if event:
-                        events.append(event)
+                    if event and event.event_id not in events_by_id:
+                        events_by_id[event.event_id] = event
                 except Exception as e:
                     logger.warning(
                         "Failed to parse event %s: %s",
@@ -122,7 +123,7 @@ class SportyBetClient:
                         e,
                     )
 
-        return events
+        return list(events_by_id.values())
 
     def _parse_single_event(
         self,
