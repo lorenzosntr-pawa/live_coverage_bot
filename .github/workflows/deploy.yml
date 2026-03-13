@@ -18,6 +18,7 @@ jobs:
           script: |
             set -e
             cd ~/live_coverage_bot
+            git config --global --add safe.directory ~/live_coverage_bot
             git pull origin master
             source venv/bin/activate
             pip install -e .
