@@ -194,6 +194,8 @@ class BetPawaClient:
     async def get_live_events(self) -> list[LiveEvent]:
         """Fetch all live football events from BetPawa.
 
+        Paginates through all live events to ensure none are missed.
+
         Returns:
             List of live events with extracted provider IDs.
 
@@ -201,37 +203,50 @@ class BetPawaClient:
             BetPawaError: If the API request fails.
         """
         try:
-            # Build query JSON for live football events (category 2 = football)
-            # Query format must match BetPawa's expected structure exactly
-            query = {
-                "queries": [
-                    {
-                        "query": {
-                            "eventType": "LIVE",
-                            "categories": ["2"],
-                            "zones": {},
-                        },
-                        "view": {
-                            "marketTypes": ["3743"],
-                        },
-                        "skip": 0,
-                        "take": 100,
-                        "sort": {
-                            "competitionPriority": "DESC",
-                        },
-                    }
-                ]
-            }
-            params = {"q": json.dumps(query)}
+            events: list[LiveEvent] = []
+            skip = 0
+            take = 100
 
-            response = await self._client.get(
-                "/events/lists/by-queries",
-                params=params,
-            )
-            response.raise_for_status()
-            data = response.json()
+            while True:
+                # Build query JSON for live football events (category 2 = football)
+                query = {
+                    "queries": [
+                        {
+                            "query": {
+                                "eventType": "LIVE",
+                                "categories": ["2"],
+                                "zones": {},
+                            },
+                            "view": {
+                                "marketTypes": ["3743"],
+                            },
+                            "skip": skip,
+                            "take": take,
+                            "sort": {
+                                "competitionPriority": "DESC",
+                            },
+                        }
+                    ]
+                }
+                params = {"q": json.dumps(query)}
 
-            return self._parse_events(data)
+                response = await self._client.get(
+                    "/events/lists/by-queries",
+                    params=params,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                page_events = self._parse_events(data)
+                events.extend(page_events)
+
+                # Check if we got fewer events than requested (last page)
+                if len(page_events) < take:
+                    break
+
+                skip += take
+
+            return events
         except httpx.HTTPStatusError as e:
             logger.error("BetPawa API returned error: %s", e.response.status_code)
             raise BetPawaError(f"API returned status {e.response.status_code}") from e
