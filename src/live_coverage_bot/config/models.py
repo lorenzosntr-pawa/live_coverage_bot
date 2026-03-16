@@ -34,6 +34,17 @@ class Settings(BaseSettings):
 
     polling_interval_seconds: int = 30
     priority_leagues: list[str] = []  # Competition IDs to monitor
+    alert_confirmation_checks: int = 10  # Consecutive checks before alerting (10 × 30s = 5min)
+    top_competitions: list[str] = [
+        "England Premier League",
+        "Spain LaLiga",
+        "France Ligue 1",
+        "Germany Bundesliga",
+        "Italy Serie A",
+        "UEFA Champions League",
+        "UEFA Europa League",
+        "UEFA Conference League",
+    ]  # Competitions that bypass delay (alert immediately)
     sportybet: SportyBetConfig = SportyBetConfig()
     betpawa: BetPawaConfig = BetPawaConfig()
     slack: SlackConfig
