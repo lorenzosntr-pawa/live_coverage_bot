@@ -118,8 +118,16 @@ class MonitoringLoop:
             sportybet_events, betpawa_events
         )
 
+        # Build top competitions set for case-insensitive lookup
+        top_competitions_lower = {c.lower() for c in self._settings.top_competitions}
+        threshold = self._settings.alert_confirmation_checks
+
+        # Track current missing event IDs for clearing stale counts
+        current_missing_ids: set[str] = set()
+
         # Send alerts for new missing events
         alerted_count = 0
+        pending_count = 0
         for event in missing_events:
             if self._tracker.has_been_alerted(event.event_id):
                 logger.debug("Already alerted: %s", event.event_id)
@@ -135,6 +143,25 @@ class MonitoringLoop:
                 logger.debug("Skipping event not in pre-match: %s", event.event_id)
                 continue
 
+            # Track this event as currently missing (for clearing stale counts)
+            current_missing_ids.add(event.event_id)
+
+            # Check if this is a top competition (bypass delay)
+            is_top_competition = event.competition.lower() in top_competitions_lower
+
+            # Non-top competitions require confirmation threshold
+            if not is_top_competition:
+                count = self._tracker.record_missing(event.event_id)
+                if count < threshold:
+                    logger.debug(
+                        "Awaiting confirmation: %s (%d/%d)",
+                        event.event_id,
+                        count,
+                        threshold,
+                    )
+                    pending_count += 1
+                    continue
+
             # Look up BetPawa event ID from pre-match cache
             betpawa_event_id = self._prematch_cache.get_betpawa_event_id(
                 event.provider_ids
@@ -149,6 +176,9 @@ class MonitoringLoop:
                 # Don't mark as alerted on failure - will retry next cycle
                 logger.warning("Failed to alert for event: %s", event.event_id)
 
+        # Clear missing counts for events that reappeared
+        self._tracker.clear_not_missing(current_missing_ids)
+
         # Log human-readable poll summary
         logger.info(
             "\n%s",
@@ -156,3 +186,5 @@ class MonitoringLoop:
                 sportybet_events, betpawa_events, missing_events, alerted_count
             ),
         )
+        if pending_count > 0:
+            logger.info("📋 %d events awaiting confirmation", pending_count)
