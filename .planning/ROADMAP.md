@@ -42,10 +42,10 @@ Build a live event coverage comparison tool that monitors SportyBet and BetPawa 
 **Goal**: Add configurable alert delay with top competition exclusions
 **Depends on**: v1.0 complete
 **Research**: Unlikely (internal patterns, extending existing config/logic)
-**Plans**: TBD
+**Plans**: 1/1
 
 Plans:
-- [ ] 07-01: TBD (run /gsd:plan-phase 7 to break down)
+- [x] 7-01: Alert delay with top competition bypass — completed 2026-03-16
 
 **Scope:**
 - `alert_delay_minutes` config option (default: 5 minutes)
@@ -87,5 +87,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2
 | 6.3. In-Play Filter | v1.0 | 1/1 | Complete | 2026-03-12 |
 | 6.4. Pre-match Cache | v1.0 | 1/1 | Complete | 2026-03-12 |
 | 6.5. Human-Readable Logging | v1.0 | 1/1 | Complete | 2026-03-12 |
-| 7. Alert Delay System | v1.1 | 0/? | Not started | - |
+| 7. Alert Delay System | v1.1 | 1/1 | Complete | 2026-03-16 |
 | 8. Docker Deployment | v1.2 | 0/? | Not started | - |
