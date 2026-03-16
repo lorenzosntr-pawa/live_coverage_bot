@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Reliable detection of missing live events in priority leagues — never miss an event that should be on BetPawa.
-**Current focus:** v1.0 MVP shipped — planning v1.1 Deployment
+**Current focus:** v1.1 Alert Improvements — reduce false positives with configurable delay
 
 ## Current Position
 
-Phase: v1.0 complete, v1.1 not started
-Plan: N/A
-Status: Milestone v1.0 shipped
-Last activity: 2026-03-12 — v1.0 MVP complete
+Phase: 7 of 7 (Alert Delay System)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-16 — Milestone v1.1 created
 
-Progress: ██████████ 100% (v1.0)
+Progress: ░░░░░░░░░░ 0%
 
 ## Performance Metrics
 
@@ -57,9 +57,12 @@ v1.0 decisions summary:
 v1.0 included 5 inserted phases (6.1-6.5) for urgent improvements:
 - Country in alerts, SRL filtering, in-play validation, pre-match cache, human-readable logging
 
+- Milestone v1.1 created: Alert Improvements, 1 phase (Phase 7)
+- Docker deployment moved to v1.2 (Phase 8)
+
 ### Deferred Issues
 
-- Docker deployment (Phase 7 deferred to v1.1)
+- Docker deployment (Phase 8 in v1.2)
 
 ### Blockers/Concerns
 
@@ -67,6 +70,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12
-Stopped at: v1.0 milestone complete
+Last session: 2026-03-16
+Stopped at: Milestone v1.1 initialization
 Resume file: None

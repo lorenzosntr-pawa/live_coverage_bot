@@ -7,7 +7,8 @@ Build a live event coverage comparison tool that monitors SportyBet and BetPawa 
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-6.5 (shipped 2026-03-12) — [Archive](milestones/v1.0-ROADMAP.md)
-- 📋 **v1.1 Deployment** — Phase 7+ (planned)
+- 🚧 **v1.1 Alert Improvements** — Phase 7 (in progress)
+- 📋 **v1.2 Deployment** — Phase 8+ (planned)
 
 ## Completed Milestones
 
@@ -30,16 +31,48 @@ Build a live event coverage comparison tool that monitors SportyBet and BetPawa 
 
 </details>
 
+## Current Milestone
+
+### 🚧 v1.1 Alert Improvements (In Progress)
+
+**Milestone Goal:** Reduce false positive alerts by adding configurable delay with top competition bypass
+
+#### Phase 7: Alert Delay System
+
+**Goal**: Add configurable alert delay with top competition exclusions
+**Depends on**: v1.0 complete
+**Research**: Unlikely (internal patterns, extending existing config/logic)
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01: TBD (run /gsd:plan-phase 7 to break down)
+
+**Scope:**
+- `alert_delay_minutes` config option (default: 5 minutes)
+- `top_competitions` config list for competitions that bypass delay
+- Track first-seen timestamp for each missing event
+- Only alert after delay elapsed (immediate for top competitions)
+
+**Top Competitions (bypass delay):**
+- England Premier League
+- Spain LaLiga
+- France Ligue 1
+- Germany Bundesliga
+- Italy Serie A
+- UEFA Champions League
+- UEFA Europa League
+- UEFA Conference League
+
 ## Future Phases
 
-### 📋 v1.1 Deployment (Planned)
+### 📋 v1.2 Deployment (Planned)
 
-- [ ] Phase 7: Docker Deployment — Containerization with environment config
+- [ ] Phase 8: Docker Deployment — Containerization with environment config
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 7 → 8
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -54,4 +87,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 6.1 → 6.2
 | 6.3. In-Play Filter | v1.0 | 1/1 | Complete | 2026-03-12 |
 | 6.4. Pre-match Cache | v1.0 | 1/1 | Complete | 2026-03-12 |
 | 6.5. Human-Readable Logging | v1.0 | 1/1 | Complete | 2026-03-12 |
-| 7. Docker Deployment | v1.1 | 0/? | Not started | - |
+| 7. Alert Delay System | v1.1 | 0/? | Not started | - |
+| 8. Docker Deployment | v1.2 | 0/? | Not started | - |
