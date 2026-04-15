@@ -40,7 +40,7 @@ PREMATCH → REMOVED     (disappeared from prematch feed before kickoff → no a
 | provider_ids | JSON array, e.g., `[{"type":"SPORTRADAR","id":"12345"}]` |
 | first_seen_prematch | When we first discovered it |
 | first_seen_live | When it appeared in live feed (nullable) |
-| transition_delay_sec | Seconds between kickoff and live appearance (nullable) |
+| transition_delay_sec | Seconds between kickoff and live appearance (nullable). Positive = late, 0 = on time, negative = went live before kickoff |
 | slack_message_ts | Slack parent message ID for edits (nullable) |
 
 ### Configurable thresholds
