@@ -1,3 +1,3 @@
-"""Live Coverage Bot - Monitor sports events across betting platforms."""
+"""Live Coverage Bot - BetPawa prematch-to-live event monitor."""
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"
