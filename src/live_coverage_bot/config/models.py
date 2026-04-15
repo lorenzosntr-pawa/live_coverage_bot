@@ -1,13 +1,22 @@
-"""Configuration schema models for Live Coverage Bot."""
+"""Configuration schema models for Live Coverage Bot v2."""
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class SportyBetConfig(BaseModel):
-    """SportyBet API configuration."""
+class PollingConfig(BaseModel):
+    """Polling interval configuration."""
 
-    base_url: str = "https://www.sportybet.com/api/ng/factsCenter"
+    live_interval_seconds: int = 30
+    prematch_interval_seconds: int = 150
+    prematch_lookahead_hours: int = 3
+
+
+class ThresholdConfig(BaseModel):
+    """Event lifecycle threshold configuration."""
+
+    grace_period_minutes: int = 5
+    hard_timeout_minutes: int = 90
 
 
 class BetPawaConfig(BaseModel):
@@ -20,34 +29,42 @@ class BetPawaConfig(BaseModel):
 
 
 class SlackConfig(BaseModel):
-    """Slack notification configuration."""
+    """Slack Web API configuration."""
 
-    webhook_url: HttpUrl
+    bot_token: str
+    channel_id: str
+    summary_channel_id: str | None = None
+
+
+class DatabaseConfig(BaseModel):
+    """SQLite database configuration."""
+
+    path: str = "data/events.db"
+    retention_days: int = 30
+
+
+class ReportingConfig(BaseModel):
+    """Weekly report configuration."""
+
+    day: str = "tuesday"
+    time: str = "08:00"
+    week_starts: str = "tuesday"
+    output_dir: str = "reports/"
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable support.
 
     Environment variables use LCB_ prefix and __ for nested values.
-    Example: LCB_POLLING_INTERVAL_SECONDS=60, LCB_SLACK__WEBHOOK_URL=...
+    Example: LCB_SLACK__BOT_TOKEN=xoxb-..., LCB_SLACK__CHANNEL_ID=C123
     """
 
-    polling_interval_seconds: int = 30
-    priority_leagues: list[str] = []  # Competition IDs to monitor
-    alert_confirmation_checks: int = 10  # Consecutive checks before alerting (10 × 30s = 5min)
-    top_competitions: list[str] = [
-        "England Premier League",
-        "Spain LaLiga",
-        "France Ligue 1",
-        "Germany Bundesliga",
-        "Italy Serie A",
-        "UEFA Champions League",
-        "UEFA Europa League",
-        "UEFA Conference League",
-    ]  # Competitions that bypass delay (alert immediately)
-    sportybet: SportyBetConfig = SportyBetConfig()
+    polling: PollingConfig = PollingConfig()
+    thresholds: ThresholdConfig = ThresholdConfig()
     betpawa: BetPawaConfig = BetPawaConfig()
     slack: SlackConfig
+    database: DatabaseConfig = DatabaseConfig()
+    reporting: ReportingConfig = ReportingConfig()
 
     model_config = SettingsConfigDict(
         env_prefix="LCB_",

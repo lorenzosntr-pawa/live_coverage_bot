@@ -1,0 +1,66 @@
+"""Tests for configuration models."""
+
+from live_coverage_bot.config.models import (
+    BetPawaConfig,
+    DatabaseConfig,
+    PollingConfig,
+    ReportingConfig,
+    Settings,
+    SlackConfig,
+    ThresholdConfig,
+)
+
+
+class TestPollingConfig:
+    def test_defaults(self):
+        config = PollingConfig()
+        assert config.live_interval_seconds == 30
+        assert config.prematch_interval_seconds == 150
+        assert config.prematch_lookahead_hours == 3
+
+
+class TestThresholdConfig:
+    def test_defaults(self):
+        config = ThresholdConfig()
+        assert config.grace_period_minutes == 5
+        assert config.hard_timeout_minutes == 90
+
+
+class TestDatabaseConfig:
+    def test_defaults(self):
+        config = DatabaseConfig()
+        assert config.path == "data/events.db"
+        assert config.retention_days == 30
+
+
+class TestReportingConfig:
+    def test_defaults(self):
+        config = ReportingConfig()
+        assert config.day == "tuesday"
+        assert config.time == "08:00"
+        assert config.week_starts == "tuesday"
+        assert config.output_dir == "reports/"
+
+
+class TestSlackConfig:
+    def test_requires_bot_token(self):
+        config = SlackConfig(bot_token="xoxb-test", channel_id="C123")
+        assert config.bot_token == "xoxb-test"
+        assert config.channel_id == "C123"
+        assert config.summary_channel_id is None
+
+    def test_summary_channel_defaults_to_none(self):
+        config = SlackConfig(bot_token="xoxb-test", channel_id="C123")
+        assert config.summary_channel_id is None
+
+
+class TestSettings:
+    def test_loads_with_minimal_config(self):
+        settings = Settings(
+            slack=SlackConfig(bot_token="xoxb-test", channel_id="C123"),
+            _env_file=None,
+        )
+        assert settings.polling.live_interval_seconds == 30
+        assert settings.thresholds.grace_period_minutes == 5
+        assert settings.database.path == "data/events.db"
+        assert settings.betpawa.brand == "betpawa-nigeria"
