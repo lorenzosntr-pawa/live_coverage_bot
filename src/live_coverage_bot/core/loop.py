@@ -95,6 +95,7 @@ class MonitoringLoop:
 
         live_provider_set = BetPawaClient.build_live_provider_set(live_events)
 
+        current_prematch_ids: set[str] | None = None
         if should_fetch_prematch:
             self._prematch_cycle_counter = 0
             try:
@@ -107,17 +108,22 @@ class MonitoringLoop:
                     logger.info("Registered %d new prematch events", len(new_ids))
 
                 current_prematch_ids = {e.event_id for e in upcoming}
-                removed = await self._tracker.detect_removed(current_prematch_ids, now=now)
-                if removed:
-                    logger.info("Detected %d removed prematch events", len(removed))
 
             except BetPawaError as e:
                 logger.warning("BetPawa prematch fetch failed: %s", e)
 
+        # Transitions first — this moves PREMATCH → LIVE for events that appeared in the
+        # live feed, before detect_removed runs. Otherwise events going live (and thus
+        # disappearing from the prematch feed) would be wrongly marked as REMOVED.
         transitions = await self._tracker.check_transitions(live_provider_set, now=now)
 
         for t in transitions:
             await self._handle_transition(slack, t, now)
+
+        if current_prematch_ids is not None:
+            removed = await self._tracker.detect_removed(current_prematch_ids, now=now)
+            if removed:
+                logger.info("Detected %d removed prematch events", len(removed))
 
         active = await self._repo.get_active_events()
         prematch_count = sum(1 for e in active if e.status == EventStatus.PREMATCH)
