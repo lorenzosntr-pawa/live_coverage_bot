@@ -87,8 +87,8 @@ class TestCheckTransitions:
         )
 
         now_live = datetime(2026, 4, 15, 15, 1, tzinfo=UTC)
-        live_provider_ids = {(ProviderType.SPORTRADAR, "12345")}
-        transitions = await tracker.check_transitions(live_provider_ids, now=now_live)
+        live_betpawa_ids = {"99001"}
+        transitions = await tracker.check_transitions(live_betpawa_ids, now=now_live)
 
         assert len(transitions) == 1
         t = transitions[0]
@@ -146,8 +146,8 @@ class TestCheckTransitions:
         await tracker.check_transitions(set(), now=now_late)
 
         now_live = kickoff + timedelta(minutes=12)
-        live_ids = {(ProviderType.SPORTRADAR, "12345")}
-        transitions = await tracker.check_transitions(live_ids, now=now_live)
+        live_betpawa_ids = {"99001"}
+        transitions = await tracker.check_transitions(live_betpawa_ids, now=now_live)
 
         assert len(transitions) == 1
         assert transitions[0]["old_status"] == EventStatus.LATE

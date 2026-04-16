@@ -4,7 +4,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from live_coverage_bot.clients.models import ProviderType
 from live_coverage_bot.db.repository import EventRepository
 from live_coverage_bot.models.events import EventStatus, TrackedEvent
 
@@ -56,17 +55,19 @@ class EventLifecycleTracker:
 
     async def check_transitions(
         self,
-        live_provider_ids: set[tuple[ProviderType, str]],
+        live_betpawa_ids: set[str],
         now: datetime,
     ) -> list[dict[str, Any]]:
-        """Check all active events for state transitions."""
+        """Check all active events for state transitions.
+
+        Matches by BetPawa event ID (stable across prematch and live feeds).
+        """
         active_events = await self._repo.get_active_events()
         transitions: list[dict[str, Any]] = []
 
         for event in active_events:
             assert event.id is not None
-            event_live_keys = {(pid.type, pid.id) for pid in event.provider_ids}
-            is_in_live_feed = bool(event_live_keys & live_provider_ids)
+            is_in_live_feed = event.betpawa_event_id in live_betpawa_ids
 
             transition = await self._evaluate_transition(event, is_in_live_feed, now)
             if transition:

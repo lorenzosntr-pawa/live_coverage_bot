@@ -452,12 +452,19 @@ class BetPawaClient:
         return provider_ids
 
     @staticmethod
-    def build_live_provider_set(events: list[LiveEvent]) -> set[tuple[ProviderType, str]]:
-        """Build a set of (ProviderType, id) tuples from live events for matching."""
-        result: set[tuple[ProviderType, str]] = set()
+    def build_live_betpawa_id_set(events: list[LiveEvent]) -> set[str]:
+        """Build a set of BetPawa event IDs (without 'bp:' prefix) from live events.
+
+        BetPawa's own event ID is stable across prematch and live feeds, making it
+        the most reliable identifier for matching tracked prematch events against
+        the current live feed.
+        """
+        result: set[str] = set()
         for event in events:
-            for pid in event.provider_ids:
-                result.add((pid.type, pid.id))
+            eid = event.event_id
+            if eid.startswith("bp:"):
+                eid = eid[3:]
+            result.add(eid)
         return result
 
     @staticmethod
