@@ -1,0 +1,82 @@
+Request URL
+https://www.betpawa.ng/api/sportsbook/v3/events/34397693
+Request Method
+GET
+Status Code
+200 OK
+Remote Address
+172.67.193.127:443
+Referrer Policy
+strict-origin-when-cross-origin
+alt-svc
+h3=":443"; ma=86400
+cache-control
+public, max-age=1
+cf-cache-status
+EXPIRED
+cf-ray
+9ed396654df1e898-MXP
+content-encoding
+gzip
+content-type
+application/json
+date
+Thu, 16 Apr 2026 13:37:56 GMT
+expires
+Thu, 16 Apr 2026 13:37:57 GMT
+last-modified
+Thu, 16 Apr 2026 13:37:56 GMT
+server
+cloudflare
+vary
+accept-encoding
+:authority
+www.betpawa.ng
+:method
+GET
+:path
+/api/sportsbook/v3/events/34397693
+:scheme
+https
+accept
+*/*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-GB,en-US;q=0.9,en;q=0.8,it;q=0.7
+baggage
+sentry-environment=production,sentry-release=frontend-react-web%402.229.85,sentry-public_key=7dbd827f7c2773299b99ce1c442758d5,sentry-trace_id=ee49410d258d456a8d3063f2fed41610,sentry-org_id=318738,sentry-transaction=%2Fevent%2F%5BeventId%5D,sentry-sampled=true,sentry-sample_rand=0.0902338081458336,sentry-sample_rate=0.1
+content-type
+application/json
+cookie
+_ga=GA1.1.1814673975.1760527936; lang=en; PHPSESSID=7db1953f5530ec5d489aac335365465c; _ga_608WPEPCC3=GS2.1.s1770904206$o8$g0$t1770904206$j60$l0$h0; _gcl_au=1.1.1163116835.1768917640; x-pawa-token=8c0e0b83e7927e52-46c9283a69314b95; _ga_81NDDTKQDC=GS2.1.s1775724413$o110$g1$t1775730314$j57$l0$h0; _clck=1b71o1h%5E2%5Eg58%5E0%5E2114; bp_country=IT; __cf_bm=2Cz9qkv2vLzChz.CDUesT21eTszYySFPLBZtFmtH5Zg-1776345844.616358-1.0.1.1-VbCSczK42q0do_imfJzsJSFk.OBYArCbGvg3DbII2KdhDykB6b0Y4JS_S90_EqjRQIF5NEZwApB.IlCLzAQvMkbz7u9ZelhIoTdtwhjjn3s0mk_OOT1igFK9L9EeXXKP; _ga_81NDDTKQDC=GS2.1.s1776343796$o128$g1$t1776346675$j60$l0$h0
+devicetype
+smart_phone
+if-modified-since
+Thu, 16 Apr 2026 13:04:34 GMT
+priority
+u=1, i
+referer
+https://www.betpawa.ng/event/34397693?filter=all
+sec-ch-ua
+"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"
+sec-ch-ua-mobile
+?1
+sec-ch-ua-platform
+"iOS"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+sentry-trace
+ee49410d258d456a8d3063f2fed41610-9a35632a83a9ed7e-1
+traceid
+7ee78f2e-fb35-4dc0-93d0-37ef285037e6
+user-agent
+Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1
+x-pawa-brand
+betpawa-nigeria
+x-pawa-language
+en
