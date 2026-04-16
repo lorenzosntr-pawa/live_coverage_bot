@@ -25,10 +25,23 @@ class WeeklyReporter:
         self._week_starts = week_starts.lower()
 
     def compute_report_period(self, report_time: datetime) -> tuple[datetime, datetime]:
-        """Compute the Tue-Mon period ending before report_time."""
+        """Compute the completed week period ending before report_time.
+
+        The period ends on the last day of the most recently completed week
+        (the day before the week-start weekday).  For week_starts='tuesday'
+        this is always a Monday.
+
+        Example: report_time = Tuesday Apr 14 → period = Tue Apr 7 – Mon Apr 13.
+        """
         target_weekday = self.WEEKDAY_MAP[self._week_starts]
-        days_since_start = (report_time.weekday() - target_weekday) % 7
-        period_end_date = (report_time - timedelta(days=days_since_start)).date()
+        # The week-end day is one day before the week-start day.
+        week_end_weekday = (target_weekday - 1) % 7
+        # How many days back is the most recent occurrence of week_end_weekday?
+        days_back = (report_time.weekday() - week_end_weekday) % 7
+        # If report_time itself is the week-end day (days_back==0) it is the
+        # last day of the just-completed week; include it.
+        # If days_back==0 and report_time is the week-end day, that's correct.
+        period_end_date = (report_time - timedelta(days=days_back)).date()
         period_start_date = period_end_date - timedelta(days=6)
         start = datetime(
             period_start_date.year, period_start_date.month, period_start_date.day,
