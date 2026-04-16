@@ -54,3 +54,7 @@ htmlcov/
 
 # Reference data (API samples)
 betpawa_api_endpoints/
+
+# Runtime data and generated reports
+data/
+reports/

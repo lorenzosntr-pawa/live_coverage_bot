@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "live-coverage-bot"
 version = "0.1.0"
-description = "Monitor sports events across betting platforms and notify via Slack"
+description = "BetPawa prematch-to-live event monitor with Slack alerting and weekly reports"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
