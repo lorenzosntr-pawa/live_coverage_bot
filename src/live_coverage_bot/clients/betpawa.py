@@ -451,6 +451,82 @@ class BetPawaClient:
 
         return provider_ids
 
+    async def get_event_markets(self, event_id: str) -> list["Market"]:
+        """Fetch full event detail including all markets.
+
+        Uses GET /events/{event_id}. Returns the list of Market objects parsed
+        from the response. BetPawa's event ID is used directly (no 'bp:' prefix).
+
+        Raises:
+            BetPawaError: If the API request fails or parsing fails.
+        """
+        from live_coverage_bot.models.markets import Market, MarketRow, Selection
+
+        try:
+            response = await self._client.get(f"/events/{event_id}")
+            response.raise_for_status()
+            data = response.json()
+
+            markets: list[Market] = []
+            for raw_market in data.get("markets", []):
+                mt = raw_market.get("marketType") or {}
+                market_type_id = str(mt.get("id", ""))
+                if not market_type_id:
+                    continue
+                market_type_name = mt.get("name", "")
+                priority = int(mt.get("priority", 0) or 0)
+
+                rows: list[MarketRow] = []
+                for raw_row in raw_market.get("row", []):
+                    row_id = str(raw_row.get("id", ""))
+                    if not row_id:
+                        continue
+                    handicap_value = raw_row.get("handicap")
+                    handicap = str(handicap_value) if handicap_value is not None else None
+
+                    selections: list[Selection] = []
+                    for raw_price in raw_row.get("prices", []):
+                        price_id = str(raw_price.get("id", ""))
+                        type_id = str(raw_price.get("typeId", ""))
+                        raw_price_value = raw_price.get("price")
+                        if not price_id or not type_id or raw_price_value is None:
+                            continue
+                        try:
+                            price_value = float(raw_price_value)
+                        except (TypeError, ValueError):
+                            continue
+                        selections.append(Selection(
+                            price_id=price_id,
+                            name=raw_price.get("name", ""),
+                            type_id=type_id,
+                            price=price_value,
+                            suspended=bool(raw_price.get("suspended", False)),
+                        ))
+
+                    rows.append(MarketRow(
+                        row_id=row_id,
+                        handicap=handicap,
+                        selections=selections,
+                    ))
+
+                markets.append(Market(
+                    market_type_id=market_type_id,
+                    market_type_name=market_type_name,
+                    priority=priority,
+                    rows=rows,
+                ))
+
+            return markets
+        except httpx.HTTPStatusError as e:
+            logger.error("BetPawa event detail API returned error: %s", e.response.status_code)
+            raise BetPawaError(f"Event detail API returned status {e.response.status_code}") from e
+        except httpx.RequestError as e:
+            logger.error("BetPawa event detail API request failed: %s", e)
+            raise BetPawaError(f"Event detail request failed: {e}") from e
+        except Exception as e:
+            logger.error("Unexpected error fetching event detail %s: %s", event_id, e)
+            raise BetPawaError(f"Unexpected error: {e}") from e
+
     @staticmethod
     def build_live_betpawa_id_set(events: list[LiveEvent]) -> set[str]:
         """Build a set of BetPawa event IDs (without 'bp:' prefix) from live events.
