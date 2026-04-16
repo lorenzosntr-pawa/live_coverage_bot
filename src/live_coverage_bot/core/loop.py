@@ -79,8 +79,13 @@ class MonitoringLoop:
             self._settings.polling.prematch_interval_seconds
             // self._settings.polling.live_interval_seconds
         )
+        is_first_cycle = self._prematch_cycle_counter == 0
         self._prematch_cycle_counter += 1
-        should_fetch_prematch = force_prematch or (self._prematch_cycle_counter >= prematch_ratio)
+        should_fetch_prematch = (
+            force_prematch
+            or is_first_cycle
+            or self._prematch_cycle_counter >= prematch_ratio
+        )
 
         try:
             live_events = await betpawa.get_live_events()
