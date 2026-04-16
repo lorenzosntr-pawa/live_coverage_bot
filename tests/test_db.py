@@ -169,3 +169,25 @@ class TestEventRepository:
         assert remaining is not None
         gone = await repo.get_by_betpawa_id("old")
         assert gone is None
+
+
+class TestMarketSchema:
+    async def test_market_tables_exist(self, db):
+        tables = await db.fetch_all(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        names = {r["name"] for r in tables}
+        assert "market_snapshots" in names
+        assert "market_comparisons" in names
+
+    async def test_market_indexes_exist(self, db):
+        indexes = await db.fetch_all(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'"
+        )
+        names = {r["name"] for r in indexes}
+        assert "idx_snapshots_event" in names
+        assert "idx_snapshots_taken_at" in names
+        assert "idx_snapshots_phase" in names
+        assert "idx_comparisons_event" in names
+        assert "idx_comparisons_compared_at" in names
+        assert "idx_comparisons_alert" in names

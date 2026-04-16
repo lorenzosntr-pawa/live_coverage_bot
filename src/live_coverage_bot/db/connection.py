@@ -35,8 +35,42 @@ CREATE TABLE IF NOT EXISTS event_state_changes (
     details TEXT
 );
 
+CREATE TABLE IF NOT EXISTS market_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    phase TEXT NOT NULL,
+    taken_at TEXT NOT NULL,
+    markets_json TEXT NOT NULL,
+    total_market_count INTEGER NOT NULL,
+    total_selection_count INTEGER NOT NULL,
+    suspended_count INTEGER NOT NULL,
+    fetch_duration_ms INTEGER,
+    UNIQUE (event_id, phase)
+);
+
+CREATE TABLE IF NOT EXISTS market_comparisons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    compared_at TEXT NOT NULL,
+    prematch_phase TEXT NOT NULL,
+    markets_added INTEGER NOT NULL,
+    markets_dropped INTEGER NOT NULL,
+    markets_kept INTEGER NOT NULL,
+    retention_pct REAL NOT NULL,
+    dropped_key_markets TEXT NOT NULL,
+    max_odds_shift_pct REAL NOT NULL,
+    triggered_alert INTEGER NOT NULL,
+    details_json TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
 CREATE INDEX IF NOT EXISTS idx_events_kickoff ON events(scheduled_kickoff);
+CREATE INDEX IF NOT EXISTS idx_snapshots_event ON market_snapshots(event_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_taken_at ON market_snapshots(taken_at);
+CREATE INDEX IF NOT EXISTS idx_snapshots_phase ON market_snapshots(phase);
+CREATE INDEX IF NOT EXISTS idx_comparisons_event ON market_comparisons(event_id);
+CREATE INDEX IF NOT EXISTS idx_comparisons_compared_at ON market_comparisons(compared_at);
+CREATE INDEX IF NOT EXISTS idx_comparisons_alert ON market_comparisons(triggered_alert);
 """
 
 
