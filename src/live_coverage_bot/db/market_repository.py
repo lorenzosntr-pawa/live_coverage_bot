@@ -1,0 +1,143 @@
+"""Market snapshot and comparison persistence."""
+
+import json
+from datetime import datetime
+
+from live_coverage_bot.db.connection import Database
+from live_coverage_bot.models.markets import (
+    MarketComparison,
+    MarketSnapshot,
+    SnapshotPhase,
+)
+
+
+# Prematch phases ordered closest-to-kickoff first for latest-lookup.
+PREMATCH_PHASES_CLOSEST_FIRST = (
+    SnapshotPhase.PREMATCH_1,
+    SnapshotPhase.PREMATCH_15,
+    SnapshotPhase.PREMATCH_60,
+)
+
+
+class MarketRepository:
+    """Persistence for market snapshots and comparisons."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def insert_snapshot(
+        self, snapshot: MarketSnapshot, fetch_duration_ms: int | None = None
+    ) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO market_snapshots
+            (event_id, phase, taken_at, markets_json, total_market_count,
+             total_selection_count, suspended_count, fetch_duration_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                snapshot.event_id,
+                snapshot.phase.value,
+                snapshot.taken_at.isoformat(),
+                snapshot.markets_json,
+                snapshot.total_market_count,
+                snapshot.total_selection_count,
+                snapshot.suspended_count,
+                fetch_duration_ms,
+            ),
+        )
+        return cursor.lastrowid
+
+    async def phases_taken_for_event(self, event_id: int) -> set[SnapshotPhase]:
+        rows = await self._db.fetch_all(
+            "SELECT phase FROM market_snapshots WHERE event_id = ?",
+            (event_id,),
+        )
+        return {SnapshotPhase(r["phase"]) for r in rows}
+
+    async def get_latest_prematch_snapshot(
+        self, event_id: int
+    ) -> MarketSnapshot | None:
+        """Return the prematch snapshot closest to kickoff (PREMATCH_1 preferred)."""
+        for phase in PREMATCH_PHASES_CLOSEST_FIRST:
+            row = await self._db.fetch_one(
+                "SELECT * FROM market_snapshots WHERE event_id = ? AND phase = ?",
+                (event_id, phase.value),
+            )
+            if row is not None:
+                return self._row_to_snapshot(row)
+        return None
+
+    async def get_snapshots_for_event(self, event_id: int) -> list[MarketSnapshot]:
+        rows = await self._db.fetch_all(
+            "SELECT * FROM market_snapshots WHERE event_id = ? ORDER BY taken_at",
+            (event_id,),
+        )
+        return [self._row_to_snapshot(r) for r in rows]
+
+    async def insert_comparison(self, cmp: MarketComparison) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO market_comparisons
+            (event_id, compared_at, prematch_phase, markets_added, markets_dropped,
+             markets_kept, retention_pct, dropped_key_markets, max_odds_shift_pct,
+             triggered_alert, details_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cmp.event_id,
+                cmp.compared_at.isoformat(),
+                cmp.prematch_phase.value,
+                cmp.markets_added,
+                cmp.markets_dropped,
+                cmp.markets_kept,
+                cmp.retention_pct,
+                json.dumps(cmp.dropped_key_markets),
+                cmp.max_odds_shift_pct,
+                1 if cmp.triggered_alert else 0,
+                json.dumps(cmp.details, separators=(",", ":")),
+            ),
+        )
+        return cursor.lastrowid
+
+    async def get_comparison_for_event(self, event_id: int) -> MarketComparison | None:
+        row = await self._db.fetch_one(
+            "SELECT * FROM market_comparisons WHERE event_id = ?",
+            (event_id,),
+        )
+        if row is None:
+            return None
+        return self._row_to_comparison(row)
+
+    async def get_comparisons_in_date_range(
+        self, start: datetime, end: datetime
+    ) -> list[MarketComparison]:
+        rows = await self._db.fetch_all(
+            "SELECT * FROM market_comparisons WHERE compared_at >= ? AND compared_at <= ?",
+            (start.isoformat(), end.isoformat()),
+        )
+        return [self._row_to_comparison(r) for r in rows]
+
+    def _row_to_snapshot(self, row: dict) -> MarketSnapshot:
+        return MarketSnapshot(
+            id=row["id"],
+            event_id=row["event_id"],
+            phase=SnapshotPhase(row["phase"]),
+            taken_at=datetime.fromisoformat(row["taken_at"]),
+            markets=MarketSnapshot.markets_from_json(row["markets_json"]),
+            total_market_count=row["total_market_count"],
+            total_selection_count=row["total_selection_count"],
+            suspended_count=row["suspended_count"],
+        )
+
+    def _row_to_comparison(self, row: dict) -> MarketComparison:
+        return MarketComparison(
+            id=row["id"],
+            event_id=row["event_id"],
+            compared_at=datetime.fromisoformat(row["compared_at"]),
+            prematch_phase=SnapshotPhase(row["prematch_phase"]),
+            markets_added=row["markets_added"],
+            markets_dropped=row["markets_dropped"],
+            markets_kept=row["markets_kept"],
+            retention_pct=row["retention_pct"],
+            dropped_key_markets=json.loads(row["dropped_key_markets"]),
+            max_odds_shift_pct=row["max_odds_shift_pct"],
+            triggered_alert=bool(row["triggered_alert"]),
+            details=json.loads(row["details_json"]),
+        )
