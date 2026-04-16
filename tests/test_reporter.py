@@ -1,0 +1,102 @@
+"""Tests for weekly report generator."""
+
+import csv
+import io
+from datetime import UTC, datetime
+
+import pytest
+
+from live_coverage_bot.clients.models import ProviderID, ProviderType
+from live_coverage_bot.core.reporter import WeeklyReporter
+from live_coverage_bot.db.connection import Database
+from live_coverage_bot.db.repository import EventRepository
+from live_coverage_bot.models.events import EventStatus, TrackedEvent
+
+
+@pytest.fixture
+def repo(db: Database) -> EventRepository:
+    return EventRepository(db)
+
+
+@pytest.fixture
+def reporter(repo: EventRepository) -> WeeklyReporter:
+    return WeeklyReporter(repo, week_starts="tuesday")
+
+
+async def _insert_events(repo: EventRepository):
+    """Insert a mix of events for testing."""
+    base = datetime(2026, 4, 14, tzinfo=UTC)
+    pids_sr = [ProviderID(type=ProviderType.SPORTRADAR, id="100")]
+    pids_gs = [ProviderID(type=ProviderType.GENIUSSPORTS, id="200")]
+
+    events = [
+        TrackedEvent(
+            betpawa_event_id="1", home_team="A", away_team="B",
+            competition="EPL", country="England",
+            scheduled_kickoff=base, status=EventStatus.LIVE,
+            provider_ids=pids_sr, first_seen_prematch=base,
+            first_seen_live=base, transition_delay_sec=30,
+        ),
+        TrackedEvent(
+            betpawa_event_id="2", home_team="C", away_team="D",
+            competition="EPL", country="England",
+            scheduled_kickoff=base, status=EventStatus.LIVE,
+            provider_ids=pids_sr, first_seen_prematch=base,
+            first_seen_live=base, transition_delay_sec=60,
+        ),
+        TrackedEvent(
+            betpawa_event_id="3", home_team="E", away_team="F",
+            competition="LaLiga", country="Spain",
+            scheduled_kickoff=base, status=EventStatus.LIVE,
+            provider_ids=pids_gs, first_seen_prematch=base,
+            first_seen_live=base, transition_delay_sec=600,
+        ),
+        TrackedEvent(
+            betpawa_event_id="4", home_team="G", away_team="H",
+            competition="NPFL", country="Nigeria",
+            scheduled_kickoff=base, status=EventStatus.NEVER_LIVE,
+            provider_ids=pids_gs, first_seen_prematch=base,
+        ),
+        TrackedEvent(
+            betpawa_event_id="5", home_team="I", away_team="J",
+            competition="EPL", country="England",
+            scheduled_kickoff=base, status=EventStatus.REMOVED,
+            provider_ids=pids_sr, first_seen_prematch=base,
+        ),
+    ]
+    for e in events:
+        await repo.insert_event(e)
+
+
+class TestWeeklyReporter:
+    async def test_generate_slack_summary(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        assert "Total prematch events tracked: 5" in summary
+        assert "SPORTRADAR" in summary
+        assert "GENIUSSPORTS" in summary
+
+    async def test_generate_csv_content(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        csv_content = await reporter.generate_csv(start, end)
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        assert len(rows) == 5
+        assert "betpawa_event_id" in rows[0]
+        assert "status" in rows[0]
+
+    async def test_compute_report_period_tuesday_week(self, reporter):
+        report_time = datetime(2026, 4, 14, 8, 0, tzinfo=UTC)
+        start, end = reporter.compute_report_period(report_time)
+        assert start.day == 7
+        assert end.day == 13
+
+    async def test_empty_report(self, reporter, repo):
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        assert "Total prematch events tracked: 0" in summary
