@@ -47,6 +47,16 @@ class EventRepository:
             return None
         return self._row_to_event(row)
 
+    async def get_by_id(self, event_id: int) -> "TrackedEvent | None":
+        """Fetch event by internal DB ID."""
+        row = await self._db.fetch_one(
+            "SELECT * FROM events WHERE id = ?",
+            (event_id,),
+        )
+        if row is None:
+            return None
+        return self._row_to_event(row)
+
     async def get_active_events(self) -> list[TrackedEvent]:
         """Fetch all events in non-terminal states (PREMATCH, LATE)."""
         rows = await self._db.fetch_all(
