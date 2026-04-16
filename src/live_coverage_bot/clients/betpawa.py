@@ -76,6 +76,7 @@ class BetPawaClient:
             skip = 0
             take = 100
 
+            cutoff_crossed = False
             while True:
                 query = {
                     "queries": [
@@ -92,7 +93,7 @@ class BetPawaClient:
                             "skip": skip,
                             "take": take,
                             "sort": {
-                                "competitionPriority": "DESC",
+                                "startTime": "ASC",
                             },
                         }
                     ]
@@ -115,6 +116,7 @@ class BetPawaClient:
                 if not event_list:
                     break
 
+                page_kept = 0
                 # Process each event
                 for event_data in event_list:
                     # Get event ID
@@ -134,9 +136,10 @@ class BetPawaClient:
                     except ValueError:
                         continue
 
-                    # Filter by time window
+                    # Sorted ascending by startTime — once we cross cutoff, stop entirely
                     if start_time > cutoff_time:
-                        continue
+                        cutoff_crossed = True
+                        break
 
                     # Extract team names from participants
                     participants = event_data.get("participants", [])
@@ -172,6 +175,14 @@ class BetPawaClient:
                             provider_ids=provider_ids,
                         )
                     )
+                    page_kept += 1
+
+                logger.debug(
+                    "Prematch page skip=%d returned=%d kept=%d", skip, len(event_list), page_kept
+                )
+
+                if cutoff_crossed:
+                    break
 
                 # Check if we got fewer events than requested (last page)
                 if len(event_list) < take:
@@ -179,6 +190,7 @@ class BetPawaClient:
 
                 skip += take
 
+            logger.info("Fetched %d upcoming events (next %dh)", len(events), hours_ahead)
             return events
 
         except httpx.HTTPStatusError as e:
