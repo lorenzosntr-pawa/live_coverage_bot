@@ -9,8 +9,10 @@ from pathlib import Path
 
 from live_coverage_bot.config import load_config
 from live_coverage_bot.core.loop import MonitoringLoop
+from live_coverage_bot.core.market_reporter import MarketReporter
 from live_coverage_bot.core.reporter import WeeklyReporter
 from live_coverage_bot.db.connection import Database
+from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
 
 
@@ -68,20 +70,46 @@ async def _generate_report(settings, logger) -> int:
     db = Database(settings.database.path)
     await db.initialize()
     repo = EventRepository(db)
+    market_repo = MarketRepository(db)
     reporter = WeeklyReporter(repo, week_starts=settings.reporting.week_starts)
+    market_reporter = MarketReporter(repo, market_repo)
 
     now = datetime.now(tz=UTC)
     start, end = reporter.compute_report_period(now)
 
     summary = await reporter.generate_slack_summary(start, end)
+    if settings.markets.enabled:
+        markets_block = await market_reporter.generate_markets_summary_block(start, end)
+        summary = summary + "\n\n" + markets_block
     print(summary)
 
-    csv_content = await reporter.generate_csv(start, end)
     output_dir = Path(settings.reporting.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_content = await reporter.generate_csv(start, end)
     csv_path = output_dir / f"weekly-{now.strftime('%Y-%m-%d')}.csv"
     csv_path.write_text(csv_content, encoding="utf-8")
-    logger.info("CSV report written to %s", csv_path)
+    logger.info("Lifecycle CSV written to %s", csv_path)
+
+    if settings.markets.enabled:
+        market_csv = await market_reporter.generate_aggregate_csv(start, end)
+        market_csv_path = output_dir / f"weekly-markets-{now.strftime('%Y-%m-%d')}.csv"
+        market_csv_path.write_text(market_csv, encoding="utf-8")
+        logger.info("Markets CSV written to %s", market_csv_path)
+
+        event_dir = output_dir / "events" / now.strftime("%Y-%m-%d")
+        event_dir.mkdir(parents=True, exist_ok=True)
+        comparisons = await market_repo.get_comparisons_in_date_range(start, end)
+        for cmp in comparisons:
+            per_event_csv = await market_reporter.generate_per_event_csv(cmp.event_id)
+            event = await repo.get_by_id(cmp.event_id)
+            if event is None:
+                continue
+            safe_home = "".join(c if c.isalnum() else "_" for c in event.home_team)
+            safe_away = "".join(c if c.isalnum() else "_" for c in event.away_team)
+            filename = f"{event.betpawa_event_id}_{safe_home}_vs_{safe_away}.csv"
+            (event_dir / filename).write_text(per_event_csv, encoding="utf-8")
+        logger.info("Per-event CSVs written to %s", event_dir)
 
     await db.close()
     return 0
