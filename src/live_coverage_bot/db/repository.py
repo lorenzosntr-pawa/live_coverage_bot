@@ -55,6 +55,14 @@ class EventRepository:
         )
         return [self._row_to_event(row) for row in rows]
 
+    async def get_recent_removed_events(self, since: datetime) -> list[TrackedEvent]:
+        """Fetch REMOVED events with kickoff on or after `since`, for possible recovery."""
+        rows = await self._db.fetch_all(
+            "SELECT * FROM events WHERE status = ? AND scheduled_kickoff >= ?",
+            (EventStatus.REMOVED.value, since.isoformat()),
+        )
+        return [self._row_to_event(row) for row in rows]
+
     async def update_status(
         self, event_id: int, status: EventStatus, updated_at: datetime
     ) -> None:

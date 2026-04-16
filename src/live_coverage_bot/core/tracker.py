@@ -61,7 +61,12 @@ class EventLifecycleTracker:
         """Check all active events for state transitions.
 
         Matches by BetPawa event ID (stable across prematch and live feeds).
+        Also recovers REMOVED events that later appear in the live feed
+        (happens when BetPawa drops an event from prematch briefly before
+        it surfaces in the live feed — the event was wrongly marked REMOVED).
         """
+        from datetime import timedelta
+
         active_events = await self._repo.get_active_events()
         transitions: list[dict[str, Any]] = []
 
@@ -73,14 +78,52 @@ class EventLifecycleTracker:
             if transition:
                 transitions.append(transition)
 
+        # Recovery: REMOVED events that now appear in the live feed should
+        # transition to LIVE. Look back up to 24h to avoid reviving very old data.
+        lookback = now - timedelta(hours=24)
+        removed_events = await self._repo.get_recent_removed_events(lookback)
+        for event in removed_events:
+            assert event.id is not None
+            if event.betpawa_event_id not in live_betpawa_ids:
+                continue
+            elapsed_sec = (now - event.scheduled_kickoff).total_seconds()
+            delay_sec = max(0, int(elapsed_sec))
+            await self._repo.update_status(event.id, EventStatus.LIVE, updated_at=now)
+            await self._repo.update_live_fields(
+                event.id, first_seen_live=now, transition_delay_sec=delay_sec
+            )
+            await self._repo.insert_state_change(
+                event.id, EventStatus.REMOVED, EventStatus.LIVE, now,
+                details="Recovered: appeared in live feed after being marked REMOVED",
+            )
+            logger.info(
+                "Recovered REMOVED event to LIVE: %s %s vs %s",
+                event.betpawa_event_id, event.home_team, event.away_team,
+            )
+            transitions.append({
+                "betpawa_event_id": event.betpawa_event_id,
+                "event": event,
+                "old_status": EventStatus.REMOVED,
+                "new_status": EventStatus.LIVE,
+                "delay_sec": delay_sec,
+            })
+
         return transitions
 
     async def detect_removed(
         self,
         current_prematch_ids: set[str],
         now: datetime,
+        kickoff_buffer_minutes: int = 30,
     ) -> list[dict[str, Any]]:
-        """Detect PREMATCH events that disappeared from the feed before kickoff."""
+        """Detect PREMATCH events that disappeared from the feed before kickoff.
+
+        Events close to kickoff are NOT marked as REMOVED even if they vanish
+        from the prematch feed, because BetPawa commonly drops events from
+        prematch before they appear in the live feed (data propagation gap).
+        Within `kickoff_buffer_minutes` of kickoff, we wait for the event to
+        appear in live; post-kickoff, check_transitions/hard_timeout handles it.
+        """
         active_events = await self._repo.get_active_events()
         removed: list[dict[str, Any]] = []
 
@@ -89,6 +132,10 @@ class EventLifecycleTracker:
             if event.status != EventStatus.PREMATCH:
                 continue
             if now >= event.scheduled_kickoff:
+                continue
+            # Within the kickoff buffer — event might be mid-transition to live
+            minutes_to_kickoff = (event.scheduled_kickoff - now).total_seconds() / 60
+            if minutes_to_kickoff < kickoff_buffer_minutes:
                 continue
             if event.betpawa_event_id in current_prematch_ids:
                 continue
