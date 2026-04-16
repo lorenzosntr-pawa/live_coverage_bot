@@ -113,3 +113,86 @@ class TestSlackApiCalls:
             await client.post_thread_reply("1234.5678", "test reply text")
             call_kwargs = mock_post.call_args[1]
             assert call_kwargs["json"]["thread_ts"] == "1234.5678"
+
+
+class TestSlackMarketMessages:
+    def test_format_market_recap(self, slack_config, sample_event):
+        from live_coverage_bot.clients.slack import SlackClient
+        from live_coverage_bot.models.markets import MarketComparison, SnapshotPhase
+
+        client = SlackClient(slack_config)
+        now = datetime(2026, 4, 15, 15, 12, tzinfo=UTC)
+        cmp = MarketComparison(
+            event_id=1,
+            compared_at=now,
+            prematch_phase=SnapshotPhase.PREMATCH_1,
+            markets_added=0,
+            markets_dropped=53,
+            markets_kept=34,
+            retention_pct=39.1,
+            dropped_key_markets=["Both Teams To Score - FT"],
+            max_odds_shift_pct=16.7,
+            triggered_alert=True,
+            details={
+                "dropped": ["Corner markets", "Player specials"],
+                "added": [],
+                "odds_shifts": [
+                    {"market": "1X2 - FT", "selection": "1", "handicap": None,
+                     "prematch_price": 2.10, "live_price": 2.45, "shift_pct": 16.7},
+                ],
+            },
+        )
+        text = client.format_market_recap(cmp, now)
+        assert "15:12" in text
+        assert "Market comparison" in text
+        assert "87" in text
+        assert "34 live" in text
+        assert "39" in text
+        assert "Both Teams To Score - FT" in text
+        assert "16.7" in text or "16" in text
+
+    def test_format_market_anomaly_parent(self, slack_config, sample_event):
+        from live_coverage_bot.clients.slack import SlackClient
+        from live_coverage_bot.models.markets import MarketComparison, SnapshotPhase
+
+        client = SlackClient(slack_config)
+        cmp = MarketComparison(
+            event_id=1,
+            compared_at=datetime(2026, 4, 15, 15, 1, tzinfo=UTC),
+            prematch_phase=SnapshotPhase.PREMATCH_1,
+            markets_added=0, markets_dropped=50, markets_kept=20,
+            retention_pct=28.6,
+            dropped_key_markets=["1X2 - FT"],
+            max_odds_shift_pct=5.0, triggered_alert=True,
+            details={"dropped": [], "added": [], "odds_shifts": []},
+        )
+        text = client.format_market_anomaly_parent(sample_event, cmp)
+        assert "MARKET ANOMALY" in text
+        assert "Arsenal vs Chelsea" in text
+        assert "28" in text
+        assert "1X2 - FT" in text
+
+    async def test_post_market_recap(self, slack_config):
+        from live_coverage_bot.clients.slack import SlackClient
+
+        client = SlackClient(slack_config)
+        mock_response = AsyncMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_response.raise_for_status = AsyncMock()
+
+        with patch.object(client._client, "post", return_value=mock_response) as mock_post:
+            await client.post_market_recap("1234.5678", "recap text")
+            call_kwargs = mock_post.call_args[1]
+            assert call_kwargs["json"]["thread_ts"] == "1234.5678"
+
+    async def test_post_market_anomaly_alert_returns_ts(self, slack_config, sample_event):
+        from live_coverage_bot.clients.slack import SlackClient
+
+        client = SlackClient(slack_config)
+        mock_response = AsyncMock()
+        mock_response.json.return_value = {"ok": True, "ts": "9999.0000"}
+        mock_response.raise_for_status = AsyncMock()
+
+        with patch.object(client._client, "post", return_value=mock_response):
+            ts = await client.post_market_anomaly_alert(sample_event, "parent text")
+            assert ts == "9999.0000"

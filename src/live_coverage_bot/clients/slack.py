@@ -9,6 +9,7 @@ import httpx
 
 from live_coverage_bot.config.models import SlackConfig
 from live_coverage_bot.models.events import EventStatus, TrackedEvent
+from live_coverage_bot.models.markets import MarketComparison
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,107 @@ class SlackClient:
         data = response.json()
         if not data.get("ok"):
             raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+
+    def format_market_recap(
+        self,
+        comparison: "MarketComparison",
+        now: datetime,
+    ) -> str:
+        """Format a market comparison as a thread reply."""
+        time_str = now.strftime("%H:%M")
+        total_prematch = comparison.markets_dropped + comparison.markets_kept
+
+        lines: list[str] = [
+            f"{time_str} \u2014 \U0001f4ca Market comparison (prematch {comparison.prematch_phase} \u2192 live)",
+            f" \u2022 {total_prematch} prematch markets \u2192 {comparison.markets_kept} live "
+            f"({comparison.retention_pct:.0f}% retention)",
+        ]
+
+        dropped_names = comparison.details.get("dropped", [])
+        if dropped_names:
+            lines.append(f" \u2022 Dropped: {comparison.markets_dropped} markets")
+            for name in dropped_names[:5]:
+                lines.append(f"   - {name}")
+            if len(dropped_names) > 5:
+                lines.append(f"   - ... and {len(dropped_names) - 5} more")
+
+        if comparison.dropped_key_markets:
+            lines.append(
+                f" \u2022 \u26a0\ufe0f Key market(s) dropped: "
+                f"{', '.join(comparison.dropped_key_markets)}"
+            )
+
+        odds_shifts = comparison.details.get("odds_shifts", [])
+        if odds_shifts:
+            biggest = max(odds_shifts, key=lambda s: s.get("shift_pct", 0))
+            lines.append(
+                f" \u2022 Biggest odds shift: {biggest['market']} "
+                f"{biggest['selection']} "
+                f"{biggest['prematch_price']} \u2192 {biggest['live_price']} "
+                f"({biggest['shift_pct']:+.1f}%)"
+            )
+
+        return "\n".join(lines)
+
+    def format_market_anomaly_parent(
+        self,
+        event: TrackedEvent,
+        comparison: "MarketComparison",
+    ) -> str:
+        """Format a standalone 'market anomaly' parent message for happy-path events."""
+        provider_str = ", ".join(f"{p.type} #{p.id}" for p in event.provider_ids)
+        competition_line = event.competition
+        if event.country:
+            competition_line += f" | {event.country}"
+        kickoff_str = event.scheduled_kickoff.strftime("%H:%M UTC")
+        total_prematch = comparison.markets_dropped + comparison.markets_kept
+
+        lines = [
+            f"\U0001f4ca MARKET ANOMALY \u2014 {event.home_team} vs {event.away_team}",
+            f"\U0001f4cb {competition_line}",
+            f"\u23f0 Kickoff: {kickoff_str} | Went live on time",
+            f"\U0001f50c {provider_str}",
+            "",
+            f"{total_prematch} prematch markets \u2192 {comparison.markets_kept} live "
+            f"({comparison.retention_pct:.0f}% retention)",
+        ]
+        if comparison.dropped_key_markets:
+            lines.append(
+                f"\u26a0\ufe0f Key market dropped: "
+                f"{', '.join(comparison.dropped_key_markets)}"
+            )
+        if comparison.max_odds_shift_pct > 0:
+            lines.append(f"Biggest odds shift: {comparison.max_odds_shift_pct:+.1f}%")
+        return "\n".join(lines)
+
+    async def post_market_recap(self, thread_ts: str, text: str) -> None:
+        """Post a market comparison recap as a reply in an existing event thread."""
+        response = await self._client.post(
+            "/chat.postMessage",
+            json={
+                "channel": self._config.channel_id,
+                "thread_ts": thread_ts,
+                "text": text,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+
+    async def post_market_anomaly_alert(
+        self, event: TrackedEvent, text: str
+    ) -> str:
+        """Post a standalone parent message for a market anomaly. Returns ts."""
+        response = await self._client.post(
+            "/chat.postMessage",
+            json={"channel": self._config.channel_id, "text": text},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+        return data["ts"]
 
     async def close(self) -> None:
         """Close the HTTP client."""
