@@ -439,6 +439,31 @@ class BetPawaClient:
 
         return provider_ids
 
+    @staticmethod
+    def build_live_provider_set(events: list[LiveEvent]) -> set[tuple[ProviderType, str]]:
+        """Build a set of (ProviderType, id) tuples from live events for matching."""
+        result: set[tuple[ProviderType, str]] = set()
+        for event in events:
+            for pid in event.provider_ids:
+                result.add((pid.type, pid.id))
+        return result
+
+    @staticmethod
+    def upcoming_to_tracker_feed(events: list[UpcomingEvent]) -> list[dict[str, Any]]:
+        """Convert UpcomingEvent list to the dict format expected by the tracker."""
+        return [
+            {
+                "betpawa_event_id": event.event_id,
+                "home_team": event.home_team,
+                "away_team": event.away_team,
+                "competition": event.competition_name,
+                "country": event.country_name,
+                "scheduled_kickoff": event.start_time,
+                "provider_ids": event.provider_ids,
+            }
+            for event in events
+        ]
+
     async def close(self) -> None:
         """Close the HTTP client."""
         await self._client.aclose()
