@@ -29,3 +29,20 @@ reporting:
   time: "08:00"
   week_starts: "tuesday"
   output_dir: "reports/"
+
+markets:
+  enabled: true
+  snapshot_windows:
+    prematch_60_min_before: [60, 55]
+    prematch_15_min_before: [15, 10]
+    prematch_1_min_before: [1, 0]
+  alert_thresholds:
+    retention_below_pct: 50
+    any_key_market_dropped: true
+    max_odds_shift_pct: 30
+  key_markets:
+    - "1X2 - FT"
+    - "Total Score Over/Under - FT"
+    - "Both Teams To Score - FT"
+    - "Double Chance - FT"
+    - "1X2 - 1H"

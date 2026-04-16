@@ -52,6 +52,37 @@ class ReportingConfig(BaseModel):
     output_dir: str = "reports/"
 
 
+class MarketSnapshotWindowsConfig(BaseModel):
+    """Snapshot window minute ranges (relative to kickoff)."""
+
+    prematch_60_min_before: list[int] = [60, 55]
+    prematch_15_min_before: list[int] = [15, 10]
+    prematch_1_min_before: list[int] = [1, 0]
+
+
+class MarketAlertThresholdsConfig(BaseModel):
+    """Thresholds for firing market comparison alerts."""
+
+    retention_below_pct: float = 50
+    any_key_market_dropped: bool = True
+    max_odds_shift_pct: float = 30
+
+
+class MarketsConfig(BaseModel):
+    """Market comparison feature configuration."""
+
+    enabled: bool = True
+    snapshot_windows: MarketSnapshotWindowsConfig = MarketSnapshotWindowsConfig()
+    alert_thresholds: MarketAlertThresholdsConfig = MarketAlertThresholdsConfig()
+    key_markets: list[str] = [
+        "1X2 - FT",
+        "Total Score Over/Under - FT",
+        "Both Teams To Score - FT",
+        "Double Chance - FT",
+        "1X2 - 1H",
+    ]
+
+
 class Settings(BaseSettings):
     """Application settings with environment variable support.
 
@@ -65,6 +96,7 @@ class Settings(BaseSettings):
     slack: SlackConfig
     database: DatabaseConfig = DatabaseConfig()
     reporting: ReportingConfig = ReportingConfig()
+    markets: MarketsConfig = MarketsConfig()
 
     model_config = SettingsConfigDict(
         env_prefix="LCB_",

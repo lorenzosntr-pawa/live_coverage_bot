@@ -4,6 +4,9 @@ from .loader import load_config
 from .models import (
     BetPawaConfig,
     DatabaseConfig,
+    MarketAlertThresholdsConfig,
+    MarketsConfig,
+    MarketSnapshotWindowsConfig,
     PollingConfig,
     ReportingConfig,
     Settings,
@@ -14,6 +17,9 @@ from .models import (
 __all__ = [
     "BetPawaConfig",
     "DatabaseConfig",
+    "MarketAlertThresholdsConfig",
+    "MarketsConfig",
+    "MarketSnapshotWindowsConfig",
     "PollingConfig",
     "ReportingConfig",
     "Settings",

@@ -64,3 +64,35 @@ class TestSettings:
         assert settings.thresholds.grace_period_minutes == 5
         assert settings.database.path == "data/events.db"
         assert settings.betpawa.brand == "betpawa-nigeria"
+
+
+class TestMarketsConfig:
+    def test_defaults(self):
+        from live_coverage_bot.config.models import (
+            MarketAlertThresholdsConfig,
+            MarketSnapshotWindowsConfig,
+            MarketsConfig,
+        )
+
+        config = MarketsConfig()
+        assert config.enabled is True
+        assert isinstance(config.snapshot_windows, MarketSnapshotWindowsConfig)
+        assert config.snapshot_windows.prematch_60_min_before == [60, 55]
+        assert config.snapshot_windows.prematch_15_min_before == [15, 10]
+        assert config.snapshot_windows.prematch_1_min_before == [1, 0]
+        assert isinstance(config.alert_thresholds, MarketAlertThresholdsConfig)
+        assert config.alert_thresholds.retention_below_pct == 50
+        assert config.alert_thresholds.any_key_market_dropped is True
+        assert config.alert_thresholds.max_odds_shift_pct == 30
+        assert "1X2 - FT" in config.key_markets
+        assert "Total Score Over/Under - FT" in config.key_markets
+
+    def test_settings_includes_markets_section(self):
+        from live_coverage_bot.config.models import Settings, SlackConfig
+
+        settings = Settings(
+            slack=SlackConfig(bot_token="xoxb-test", channel_id="C123"),
+            _env_file=None,
+        )
+        assert settings.markets.enabled is True
+        assert settings.markets.alert_thresholds.retention_below_pct == 50
