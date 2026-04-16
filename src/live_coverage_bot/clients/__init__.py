@@ -2,7 +2,7 @@
 
 from live_coverage_bot.clients.betpawa import BetPawaClient, BetPawaError
 from live_coverage_bot.clients.models import LiveEvent, ProviderID, ProviderType, UpcomingEvent
-from live_coverage_bot.clients.slack import SlackError, SlackNotifier
+from live_coverage_bot.clients.slack import SlackClient, SlackError
 
 __all__ = [
     "BetPawaClient",
@@ -10,7 +10,7 @@ __all__ = [
     "LiveEvent",
     "ProviderID",
     "ProviderType",
+    "SlackClient",
     "SlackError",
-    "SlackNotifier",
     "UpcomingEvent",
 ]

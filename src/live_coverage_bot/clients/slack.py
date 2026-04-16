@@ -1,119 +1,164 @@
-"""Slack notification client for sending missing event alerts."""
+"""Slack Web API client for threaded event alerts."""
 
 import logging
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import Self
 
 import httpx
 
-from live_coverage_bot.clients.models import LiveEvent
 from live_coverage_bot.config.models import SlackConfig
+from live_coverage_bot.models.events import EventStatus, TrackedEvent
 
 logger = logging.getLogger(__name__)
 
+SLACK_API_BASE = "https://slack.com/api"
+
 
 class SlackError(Exception):
-    """Error raised when Slack operations fail."""
-
-    pass
+    """Error raised when Slack API operations fail."""
 
 
-class SlackNotifier:
-    """Async client for sending notifications to Slack via webhook.
-
-    Sends alerts for missing events detected in coverage comparison.
-    """
+class SlackClient:
+    """Async Slack Web API client for threaded event lifecycle alerts."""
 
     def __init__(self, config: SlackConfig) -> None:
-        """Initialize the client with configuration.
-
-        Args:
-            config: Slack configuration with webhook URL.
-        """
         self._config = config
-        self._client = httpx.AsyncClient(timeout=10.0)
+        self._client = httpx.AsyncClient(
+            base_url=SLACK_API_BASE,
+            timeout=10.0,
+            headers={"Authorization": f"Bearer {config.bot_token}"},
+        )
 
-    async def send_missing_event_alert(
-        self, event: LiveEvent, betpawa_event_id: str | None = None
-    ) -> bool:
-        """Send an alert for a missing event to Slack.
-
-        Args:
-            event: The live event that is missing from BetPawa.
-            betpawa_event_id: Optional BetPawa event ID from pre-match cache.
-
-        Returns:
-            True if the alert was sent successfully, False otherwise.
-        """
-        message = self._format_message(event, betpawa_event_id)
-
-        try:
-            response = await self._client.post(
-                str(self._config.webhook_url),
-                json={"text": message},
-            )
-            if response.is_success:
-                logger.info(
-                    "Sent Slack alert for %s vs %s", event.home_team, event.away_team
-                )
-                return True
-            else:
-                logger.warning(
-                    "Slack webhook returned status %s", response.status_code
-                )
-                return False
-        except httpx.RequestError as e:
-            logger.error("Failed to send Slack alert: %s", e)
-            return False
-
-    def _format_message(
-        self, event: LiveEvent, betpawa_event_id: str | None = None
+    def format_parent_message(
+        self, event: TrackedEvent, now: datetime | None = None
     ) -> str:
-        """Format event data into a Slack message.
+        """Format the parent Slack message based on current event status."""
+        provider_str = ", ".join(
+            f"{p.type} #{p.id}" for p in event.provider_ids
+        )
+        competition_line = event.competition
+        if event.country:
+            competition_line += f" | {event.country}"
 
-        Args:
-            event: The live event to format.
-            betpawa_event_id: Optional BetPawa event ID from pre-match cache.
+        kickoff_str = event.scheduled_kickoff.strftime("%H:%M UTC")
 
-        Returns:
-            Formatted message string with mrkdwn formatting.
-        """
-        # Build match line with optional minute
-        match_line = f"*{event.home_team} vs {event.away_team}*"
-        if event.minute is not None:
-            match_line += f" ({event.minute}')"
+        if event.status == EventStatus.LATE:
+            if now is None:
+                now = datetime.now(tz=UTC)
+            delay_min = int((now - event.scheduled_kickoff).total_seconds() / 60)
+            return (
+                f"\U0001f7e1 LATE \u2014 {event.home_team} vs {event.away_team}\n"
+                f"\U0001f4cb {competition_line}\n"
+                f"\u23f0 Kickoff: {kickoff_str} | Now: {delay_min}min late\n"
+                f"\U0001f50c {provider_str}"
+            )
 
-        # Build score display
-        if event.home_score is not None and event.away_score is not None:
-            score = f"{event.home_score}-{event.away_score}"
-        else:
-            score = "-"
+        if event.status == EventStatus.LIVE:
+            live_str = ""
+            delay_str = ""
+            if event.first_seen_live:
+                live_str = event.first_seen_live.strftime("%H:%M UTC")
+            if event.transition_delay_sec is not None:
+                delay_min = event.transition_delay_sec // 60
+                delay_str = f"+{delay_min}min"
+            return (
+                f"\U0001f7e2 WENT LIVE \u2014 {event.home_team} vs {event.away_team}\n"
+                f"\U0001f4cb {competition_line}\n"
+                f"\u23f0 Kickoff: {kickoff_str} | Live at: {live_str} ({delay_str})\n"
+                f"\U0001f50c {provider_str}"
+            )
 
-        # Build competition line with optional country prefix
-        if event.country_name:
-            competition_line = f"{event.country_name} - {event.competition_name}"
-        else:
-            competition_line = event.competition_name
+        if event.status == EventStatus.NEVER_LIVE:
+            return (
+                f"\U0001f534 NEVER LIVE \u2014 {event.home_team} vs {event.away_team}\n"
+                f"\U0001f4cb {competition_line}\n"
+                f"\u23f0 Kickoff: {kickoff_str} | Timed out after "
+                f"{int((datetime.now(tz=UTC) - event.scheduled_kickoff).total_seconds() / 60)}min\n"
+                f"\U0001f50c {provider_str}"
+            )
 
-        # Build provider line if provider info available
-        provider_line = ""
-        if event.provider_ids:
-            provider = event.provider_ids[0]
-            provider_line = f"\nProvider: {provider.type} #{provider.id}"
+        return f"{event.home_team} vs {event.away_team} [{event.status}]"
 
-        # Build BetPawa ID line if available
-        betpawa_line = ""
-        if betpawa_event_id:
-            betpawa_line = f"\nBetPawa ID: {betpawa_event_id}"
+    def format_thread_reply(
+        self,
+        old_status: EventStatus,
+        new_status: EventStatus,
+        changed_at: datetime,
+        details: str | None = None,
+    ) -> str:
+        """Format a thread reply for a state change."""
+        time_str = changed_at.strftime("%H:%M")
+        detail_str = f" \u2014 {details}" if details else ""
 
-        return f"🔴 *Missing on BetPawa*\n{match_line}\n{competition_line} | Score: {score}{provider_line}{betpawa_line}"
+        if new_status == EventStatus.LATE:
+            return f"{time_str} \u2014 \u26a0\ufe0f Not live yet{detail_str}"
+        if new_status == EventStatus.LIVE:
+            return f"{time_str} \u2014 \u2705 Went live{detail_str}"
+        if new_status == EventStatus.NEVER_LIVE:
+            return f"{time_str} \u2014 \U0001f6d1 Never went live{detail_str}"
+
+        return f"{time_str} \u2014 {old_status} \u2192 {new_status}{detail_str}"
+
+    async def post_alert(self, event: TrackedEvent, now: datetime) -> str:
+        """Post a new alert message. Returns the message ts."""
+        text = self.format_parent_message(event, now)
+        response = await self._client.post(
+            "/chat.postMessage",
+            json={"channel": self._config.channel_id, "text": text},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+        return data["ts"]
+
+    async def update_message(
+        self, ts: str, event: TrackedEvent, now: datetime | None = None
+    ) -> None:
+        """Update an existing parent message."""
+        text = self.format_parent_message(event, now)
+        response = await self._client.post(
+            "/chat.update",
+            json={"channel": self._config.channel_id, "ts": ts, "text": text},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+
+    async def post_thread_reply(self, thread_ts: str, text: str) -> None:
+        """Post a reply in a message thread."""
+        response = await self._client.post(
+            "/chat.postMessage",
+            json={
+                "channel": self._config.channel_id,
+                "thread_ts": thread_ts,
+                "text": text,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+
+    async def post_summary(self, text: str) -> None:
+        """Post a weekly summary message to the summary channel."""
+        channel = self._config.summary_channel_id or self._config.channel_id
+        response = await self._client.post(
+            "/chat.postMessage",
+            json={"channel": channel, "text": text},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
 
     async def close(self) -> None:
         """Close the HTTP client."""
         await self._client.aclose()
 
     async def __aenter__(self) -> Self:
-        """Enter async context manager."""
         return self
 
     async def __aexit__(
@@ -122,5 +167,4 @@ class SlackNotifier:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Exit async context manager and close client."""
         await self.close()
