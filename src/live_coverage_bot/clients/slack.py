@@ -52,7 +52,8 @@ class SlackClient:
                 f"\U0001f7e1 LATE \u2014 {event.home_team} vs {event.away_team}\n"
                 f"\U0001f4cb {competition_line}\n"
                 f"\u23f0 Kickoff: {kickoff_str} | Now: {delay_min}min late\n"
-                f"\U0001f50c {provider_str}"
+                f"\U0001f50c {provider_str}\n"
+                f"\U0001f194 BetPawa ID: {event.betpawa_event_id}"
             )
 
         if event.status == EventStatus.LIVE:
@@ -67,7 +68,8 @@ class SlackClient:
                 f"\U0001f7e2 WENT LIVE \u2014 {event.home_team} vs {event.away_team}\n"
                 f"\U0001f4cb {competition_line}\n"
                 f"\u23f0 Kickoff: {kickoff_str} | Live at: {live_str} ({delay_str})\n"
-                f"\U0001f50c {provider_str}"
+                f"\U0001f50c {provider_str}\n"
+                f"\U0001f194 BetPawa ID: {event.betpawa_event_id}"
             )
 
         if event.status == EventStatus.NEVER_LIVE:
@@ -76,10 +78,11 @@ class SlackClient:
                 f"\U0001f4cb {competition_line}\n"
                 f"\u23f0 Kickoff: {kickoff_str} | Timed out after "
                 f"{int((datetime.now(tz=UTC) - event.scheduled_kickoff).total_seconds() / 60)}min\n"
-                f"\U0001f50c {provider_str}"
+                f"\U0001f50c {provider_str}\n"
+                f"\U0001f194 BetPawa ID: {event.betpawa_event_id}"
             )
 
-        return f"{event.home_team} vs {event.away_team} [{event.status}]"
+        return f"{event.home_team} vs {event.away_team} [{event.status}] | BetPawa ID: {event.betpawa_event_id}"
 
     def format_thread_reply(
         self,
@@ -214,6 +217,7 @@ class SlackClient:
             f"\U0001f4cb {competition_line}",
             f"\u23f0 Kickoff: {kickoff_str} | Went live on time",
             f"\U0001f50c {provider_str}",
+            f"\U0001f194 BetPawa ID: {event.betpawa_event_id}",
             "",
             f"{total_prematch} prematch markets \u2192 {comparison.markets_kept} live "
             f"({comparison.retention_pct:.0f}% retention)",
