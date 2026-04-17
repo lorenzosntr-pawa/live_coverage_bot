@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime
+from typing import Any
 
 from live_coverage_bot.db.repository import EventRepository
 from live_coverage_bot.models.events import EventStatus, RemovedResult, TrackedEvent, TransitionResult
@@ -24,7 +25,7 @@ class EventLifecycleTracker:
 
     async def register_prematch_events(
         self,
-        prematch_feed: list[dict],
+        prematch_feed: list[dict[str, Any]],
         now: datetime,
     ) -> list[str]:
         """Register new prematch events from the feed. Returns list of new event IDs."""
