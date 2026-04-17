@@ -218,6 +218,38 @@ class TestSlackMarketMessages:
             assert ts == "9999.0000"
 
 
+class TestRemovedFormatting:
+    def test_format_removed_message(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        sample_event.status = EventStatus.REMOVED
+        now = datetime(2026, 4, 15, 14, 0, tzinfo=UTC)
+        text = client.format_parent_message(sample_event, now)
+        assert "REMOVED" in text
+
+    def test_format_removal_with_market_count(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        sample_event.status = EventStatus.REMOVED
+        sample_event.pre_removal_market_count = 56
+        now = datetime(2026, 4, 15, 14, 0, tzinfo=UTC)
+        text = client.format_parent_message(sample_event, now)
+        assert "56 markets" in text
+
+    def test_format_recovery_reply(self, slack_config):
+        from live_coverage_bot.models.markets import MatchState
+
+        client = SlackClient(slack_config)
+        ms = MatchState(minute="1", period="First Half", home_score=0, away_score=0)
+        text = client.format_recovery_reply(
+            feed="live", gap_minutes=15,
+            pre_removal_markets=56, current_markets=48,
+            match_state=ms,
+        )
+        assert "Reappeared" in text
+        assert "live" in text
+        assert "56" in text
+        assert "48" in text
+
+
 class TestDetailedMarketThread:
     def test_format_missing_markets(self, slack_config):
         from live_coverage_bot.models.markets import (

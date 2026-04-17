@@ -102,6 +102,26 @@ class SlackClient:
                 f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}"
             )
 
+        if event.status == EventStatus.REMOVED:
+            if now is None:
+                now = datetime.now(tz=UTC)
+            if event.scheduled_kickoff > now:
+                mins_before = int((event.scheduled_kickoff - now).total_seconds() / 60)
+                removed_detail = f"Removed {mins_before}min before kickoff"
+            else:
+                removed_detail = "Removed after kickoff"
+
+            lines = [
+                f"\U0001f5d1\ufe0f REMOVED {EMOJI_DASH} {event.home_team} vs {event.away_team}",
+                f"{EMOJI_CLIPBOARD} {competition_line}",
+                f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | {removed_detail}",
+                f"{EMOJI_PLUG} {provider_str}",
+                f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}",
+            ]
+            if event.pre_removal_market_count is not None:
+                lines.append(f"\nHad {event.pre_removal_market_count} markets at time of removal")
+            return "\n".join(lines)
+
         return f"{event.home_team} vs {event.away_team} [{event.status}] | BetPawa ID: {event.betpawa_event_id}"
 
     def format_thread_reply(
@@ -123,6 +143,28 @@ class SlackClient:
             return f"{time_str} {EMOJI_DASH} {EMOJI_STOP} Never went live{detail_str}"
 
         return f"{time_str} {EMOJI_DASH} {old_status} \u2192 {new_status}{detail_str}"
+
+    def format_recovery_reply(
+        self,
+        feed: str,
+        gap_minutes: int,
+        pre_removal_markets: int | None,
+        current_markets: int | None,
+        match_state=None,
+    ) -> str:
+        """Format a thread reply when a REMOVED event reappears."""
+        lines = [
+            f"{datetime.now(tz=UTC).strftime('%H:%M')} {EMOJI_DASH} "
+            f"\u267b\ufe0f Reappeared in {feed} after {gap_minutes}min",
+        ]
+        if pre_removal_markets is not None and current_markets is not None:
+            lines.append(
+                f"Markets: {pre_removal_markets} before removal \u2192 {current_markets} now"
+            )
+        if match_state:
+            lines.append(match_state.display)
+
+        return "\n".join(lines)
 
     async def post_alert(self, event: TrackedEvent, now: datetime) -> str:
         """Post a new alert message. Returns the message ts."""

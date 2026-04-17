@@ -236,6 +236,41 @@ class MonitoringLoop:
                         refreshed.away_team, old_status, new_status,
                     )
 
+            elif new_status == EventStatus.REMOVED:
+                # Post removal alert
+                refreshed.status = EventStatus.REMOVED  # Ensure status is set for formatting
+                ts = await slack.post_alert(refreshed, now)
+                assert refreshed.id is not None
+                await self._repo.update_slack_ts(refreshed.id, ts)
+                logger.info(
+                    "Alert sent: %s %s vs %s (REMOVED)",
+                    refreshed.betpawa_event_id, refreshed.home_team, refreshed.away_team,
+                )
+
+            elif old_status == EventStatus.REMOVED and new_status in (EventStatus.PREMATCH, EventStatus.LIVE):
+                if refreshed.slack_message_ts:
+                    feed = "prematch" if new_status == EventStatus.PREMATCH else "live"
+                    gap_min = 0
+                    if refreshed.removed_at:
+                        gap_min = int((now - refreshed.removed_at).total_seconds() / 60)
+
+                    current_markets = None
+                    try:
+                        if self._market_repo and refreshed.id:
+                            snaps = await self._market_repo.get_snapshots_for_event(refreshed.id)
+                            if snaps:
+                                current_markets = snaps[-1].total_market_count
+                    except Exception:
+                        pass
+
+                    reply = slack.format_recovery_reply(
+                        feed=feed,
+                        gap_minutes=gap_min,
+                        pre_removal_markets=refreshed.pre_removal_market_count,
+                        current_markets=current_markets,
+                    )
+                    await slack.post_thread_reply(refreshed.slack_message_ts, reply)
+
         except SlackError as e:
             logger.warning("Slack operation failed for %s: %s", refreshed.betpawa_event_id, e)
 
