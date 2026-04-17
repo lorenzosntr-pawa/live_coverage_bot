@@ -110,32 +110,39 @@ When an event goes live, the bot compares its live markets against the prematch 
 
 **Thread details:** The bot immediately posts a detailed breakdown in the thread:
 
-**Missing markets:**
+**Missing markets** (key markets highlighted at the top, separated from the rest):
 ```
-❌ Missing markets (34 dropped):
-  • 1X2 - FT ⚠️ KEY
-  • Total Score Over/Under - FT ⚠️ KEY
-  • Double Chance - FT ⚠️ KEY
+❌ *Missing markets (34 dropped):*
+  ⚠️ 1X2 - FT  `KEY`
+  ⚠️ Total Score Over/Under - FT  `KEY`
+  ⚠️ Double Chance - FT  `KEY`
+
   • Correct Score - FT
   • Half Time/Full Time
   • Asian Handicap - FT
   • Draw No Bet - FT
-  ... and 27 more
+  _... and 27 more_
 ```
 
-**Odds shifts (per selection):**
+**Odds shifts** (sorted by magnitude — biggest moves first, with handicap values on Over/Under lines):
 ```
-📊 Odds shifts (prematch → live):
-  1X2 - 1H:
-    Home  1.50 → 1.85 (+23.3%)
-    Draw  3.20 → 2.90 (-9.4%)
-    Away  4.00 → 4.50 (+12.5%)
-  Both Teams To Score - FT:
-    Yes   1.75 → 1.60 (-8.6%)
-    No    2.00 → 2.25 (+12.5%)
+📊 *Odds shifts (prematch → live):*
+
+  *Win to Nil Away Team - FT:*
+    Yes  `5.79` → `7.62`  *+31.6%*
+
+  *Total Score Over/Under - FT:*
+    Under (2.5)  `2.90` → `2.69`  *-7.2%*
+    Over (2.5)  `2.19` → `2.05`  *-6.4%*
+
+  *1X2 - FT:*
+    1  `1.76` → `1.66`  *-5.7%*
+
+  *Double Chance - FT:*
+    X2  `1.94` → `2.06`  *+6.2%*
 ```
 
-Only shifts above 5% are shown.
+Only shifts above 5% are shown. Markets are sorted so the biggest shifts appear first.
 
 ---
 
