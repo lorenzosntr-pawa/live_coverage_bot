@@ -22,6 +22,10 @@ from live_coverage_bot.models.markets import Market
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PAGE_SIZE = 100
+FOOTBALL_CATEGORY_ID = "2"
+EVENTS_ENDPOINT = "/events/lists/by-queries"
+
 
 class BetPawaError(Exception):
     """Error raised when BetPawa API operations fail."""
@@ -76,7 +80,7 @@ class BetPawaClient:
             cutoff_time = datetime.now(tz=UTC) + timedelta(hours=hours_ahead)
             events: list[UpcomingEvent] = []
             skip = 0
-            take = 100
+            take = DEFAULT_PAGE_SIZE
 
             cutoff_crossed = False
             while True:
@@ -85,7 +89,7 @@ class BetPawaClient:
                         {
                             "query": {
                                 "eventType": "UPCOMING",
-                                "categories": ["2"],
+                                "categories": [FOOTBALL_CATEGORY_ID],
                                 "zones": {},
                                 "hasOdds": True,
                             },
@@ -103,7 +107,7 @@ class BetPawaClient:
                 params = {"q": json.dumps(query)}
 
                 response = await self._client.get(
-                    "/events/lists/by-queries",
+                    EVENTS_ENDPOINT,
                     params=params,
                 )
                 response.raise_for_status()
@@ -170,7 +174,7 @@ class BetPawaClient:
         try:
             events: list[LiveEvent] = []
             skip = 0
-            take = 100
+            take = DEFAULT_PAGE_SIZE
 
             while True:
                 # Build query JSON for live football events (category 2 = football)
@@ -179,7 +183,7 @@ class BetPawaClient:
                         {
                             "query": {
                                 "eventType": "LIVE",
-                                "categories": ["2"],
+                                "categories": [FOOTBALL_CATEGORY_ID],
                                 "zones": {},
                             },
                             "view": {
@@ -196,7 +200,7 @@ class BetPawaClient:
                 params = {"q": json.dumps(query)}
 
                 response = await self._client.get(
-                    "/events/lists/by-queries",
+                    EVENTS_ENDPOINT,
                     params=params,
                 )
                 response.raise_for_status()

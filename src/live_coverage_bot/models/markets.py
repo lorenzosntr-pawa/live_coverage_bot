@@ -6,6 +6,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
+JSON_SEPARATORS: tuple[str, str] = (",", ":")
+
 
 class SnapshotPhase(StrEnum):
     """Market snapshot phases for a tracked event."""
@@ -101,7 +103,7 @@ class MarketSnapshot(BaseModel):
     @property
     def markets_json(self) -> str:
         """Serialize markets to JSON for DB storage."""
-        return json.dumps([m.model_dump() for m in self.markets], separators=(",", ":"))
+        return json.dumps([m.model_dump() for m in self.markets], separators=JSON_SEPARATORS)
 
     @staticmethod
     def markets_from_json(json_str: str) -> list[Market]:

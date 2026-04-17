@@ -7,6 +7,7 @@ from enum import StrEnum
 from pydantic import BaseModel
 
 from live_coverage_bot.clients.models import ProviderID
+from live_coverage_bot.models.markets import JSON_SEPARATORS
 
 
 class EventStatus(StrEnum):
@@ -47,7 +48,8 @@ class TrackedEvent(BaseModel):
     def provider_ids_json(self) -> str:
         """Serialize provider_ids to JSON string for DB storage."""
         return json.dumps(
-            [{"type": pid.type.value, "id": pid.id} for pid in self.provider_ids]
+            [{"type": pid.type.value, "id": pid.id} for pid in self.provider_ids],
+            separators=JSON_SEPARATORS,
         )
 
     @staticmethod

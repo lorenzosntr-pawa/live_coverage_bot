@@ -71,7 +71,7 @@ async def _generate_report(settings, logger) -> int:
     await db.initialize()
     repo = EventRepository(db)
     market_repo = MarketRepository(db)
-    reporter = WeeklyReporter(repo, week_starts=settings.reporting.week_starts)
+    reporter = WeeklyReporter(repo, week_starts=settings.reporting.week_starts, on_time_threshold_seconds=settings.thresholds.on_time_threshold_seconds)
     market_reporter = MarketReporter(repo, market_repo)
 
     now = datetime.now(tz=UTC)

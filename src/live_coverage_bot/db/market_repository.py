@@ -5,6 +5,7 @@ from datetime import datetime
 
 from live_coverage_bot.db.connection import Database
 from live_coverage_bot.models.markets import (
+    JSON_SEPARATORS,
     ComparisonDetails,
     MarketComparison,
     MarketSnapshot,
@@ -92,7 +93,7 @@ class MarketRepository:
                 json.dumps(cmp.dropped_key_markets),
                 cmp.max_odds_shift_pct,
                 1 if cmp.triggered_alert else 0,
-                json.dumps(cmp.details.model_dump(), separators=(",", ":")),
+                json.dumps(cmp.details.model_dump(), separators=JSON_SEPARATORS),
             ),
         )
         return cursor.lastrowid

@@ -285,7 +285,7 @@ class MonitoringLoop:
         if self._last_report_date and self._last_report_date.date() == now.date():
             return
 
-        reporter = WeeklyReporter(self._repo, week_starts=cfg.week_starts)
+        reporter = WeeklyReporter(self._repo, week_starts=cfg.week_starts, on_time_threshold_seconds=self._settings.thresholds.on_time_threshold_seconds)
         market_reporter = MarketReporter(self._repo, self._market_repo)
         start, end = reporter.compute_report_period(now)
 

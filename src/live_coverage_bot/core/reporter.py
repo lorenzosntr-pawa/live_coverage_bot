@@ -20,9 +20,15 @@ class WeeklyReporter:
         "friday": 4, "saturday": 5, "sunday": 6,
     }
 
-    def __init__(self, repo: EventRepository, week_starts: str = "tuesday") -> None:
+    def __init__(
+        self,
+        repo: EventRepository,
+        week_starts: str = "tuesday",
+        on_time_threshold_seconds: int = 300,
+    ) -> None:
         self._repo = repo
         self._week_starts = week_starts.lower()
+        self._on_time_threshold = on_time_threshold_seconds
 
     def compute_report_period(self, report_time: datetime) -> tuple[datetime, datetime]:
         """Compute the completed week period ending before report_time.
@@ -60,8 +66,8 @@ class WeeklyReporter:
         events = await self._repo.get_events_in_date_range(start, end)
         total = len(events)
 
-        on_time = [e for e in events if e.status == EventStatus.LIVE and (e.transition_delay_sec or 0) < 300]
-        late = [e for e in events if e.status == EventStatus.LIVE and (e.transition_delay_sec or 0) >= 300]
+        on_time = [e for e in events if e.status == EventStatus.LIVE and (e.transition_delay_sec or 0) < self._on_time_threshold]
+        late = [e for e in events if e.status == EventStatus.LIVE and (e.transition_delay_sec or 0) >= self._on_time_threshold]
         never_live = [e for e in events if e.status == EventStatus.NEVER_LIVE]
         removed = [e for e in events if e.status == EventStatus.REMOVED]
 
@@ -171,7 +177,7 @@ class WeeklyReporter:
                 stats[ptype]["total"] += 1
                 if event.status == EventStatus.LIVE:
                     delay = event.transition_delay_sec or 0
-                    if delay < 300:
+                    if delay < self._on_time_threshold:
                         stats[ptype]["on_time"] += 1
                     else:
                         stats[ptype]["delays"].append(delay)
