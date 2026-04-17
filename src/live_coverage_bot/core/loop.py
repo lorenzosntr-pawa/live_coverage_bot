@@ -218,21 +218,17 @@ class MonitoringLoop:
     async def _handle_market_comparison(
         self, slack: SlackClient, event_id: int, phase: SnapshotPhase, now: datetime
     ) -> None:
-        """Run comparison for a freshly stored live snapshot; route to Slack if noteworthy."""
+        """Run comparison for a live snapshot; route to Slack with detailed formatting."""
         assert self._repo is not None
         assert self._market_repo is not None
 
         prematch_snap = await self._market_repo.get_latest_prematch_snapshot(event_id)
         if prematch_snap is None:
-            logger.info(
-                "No prematch snapshot available for event %d \u2014 skipping comparison", event_id,
-            )
+            logger.info("No prematch snapshot for event %d — skipping comparison", event_id)
             return
 
         all_snaps = await self._market_repo.get_snapshots_for_event(event_id)
-        live_snap = next(
-            (s for s in reversed(all_snaps) if s.phase == phase), None
-        )
+        live_snap = next((s for s in reversed(all_snaps) if s.phase == phase), None)
         if live_snap is None:
             return
 
@@ -245,34 +241,104 @@ class MonitoringLoop:
             logger.warning("Market comparison insert failed for event %d: %s", event_id, e)
             return
 
-        if not cmp.triggered_alert:
-            return
-
         event = await self._repo.get_by_id(event_id)
         if event is None:
             return
 
         try:
-            if event.slack_message_ts:
-                recap_text = slack.format_market_recap(cmp, now)
-                await slack.post_market_recap(event.slack_message_ts, recap_text)
-                logger.info(
-                    "Posted market recap for %s (existing thread)",
-                    event.betpawa_event_id,
-                )
-            else:
+            if phase == SnapshotPhase.LIVE_0:
+                await self._handle_initial_comparison(slack, event, cmp, live_snap, now)
+            elif phase in (SnapshotPhase.LIVE_2, SnapshotPhase.LIVE_5):
+                await self._handle_followup_comparison(slack, event, cmp, live_snap, phase, now)
+        except SlackError as e:
+            logger.warning("Slack market alert failed for %s: %s", event.betpawa_event_id, e)
+
+    async def _handle_initial_comparison(
+        self, slack: SlackClient, event, cmp, live_snap, now: datetime
+    ) -> None:
+        """Handle the LIVE_0 comparison — post initial alert if triggered."""
+        if not cmp.triggered_alert:
+            return
+
+        config = self._settings.markets
+
+        if event.slack_message_ts:
+            # Post detailed thread replies on existing alert thread
+            missing_text = slack.format_missing_markets(cmp.details.dropped, config.key_markets)
+            shifts_text = slack.format_odds_shifts(
+                cmp.details.odds_shifts, config.odds_shift_display_threshold
+            )
+            match_header = live_snap.match_state.display if live_snap.match_state else ""
+            thread_text = "\n".join(filter(None, [match_header, missing_text, shifts_text]))
+            await slack.post_thread_reply(event.slack_message_ts, thread_text)
+        else:
+            # Post new standalone anomaly alert + detail thread
+            parent_text = slack.format_market_anomaly_parent(event, cmp)
+            ts = await slack.post_market_anomaly_alert(event, parent_text)
+            assert event.id is not None
+            await self._repo.update_slack_ts(event.id, ts)
+
+            missing_text = slack.format_missing_markets(cmp.details.dropped, config.key_markets)
+            shifts_text = slack.format_odds_shifts(
+                cmp.details.odds_shifts, config.odds_shift_display_threshold
+            )
+            match_header = live_snap.match_state.display if live_snap.match_state else ""
+            thread_text = "\n".join(filter(None, [match_header, missing_text, shifts_text]))
+            await slack.post_thread_reply(ts, thread_text)
+
+        logger.info("Posted market anomaly alert for %s", event.betpawa_event_id)
+
+    async def _handle_followup_comparison(
+        self, slack: SlackClient, event, cmp, live_snap, phase, now: datetime
+    ) -> None:
+        """Handle LIVE_2/LIVE_5 comparison — post update thread if event has an alert."""
+        assert self._market_repo is not None
+
+        # Find the previous comparison to compute delta
+        all_cmps = await self._market_repo.get_comparisons_for_event(event.id)
+        prev_cmp = None
+        for c in reversed(all_cmps):
+            if c.snapshot_phase != phase and c.snapshot_phase is not None:
+                prev_cmp = c
+                break
+
+        if event.slack_message_ts is None:
+            # No existing thread — fire new alert if this snapshot triggers
+            if cmp.triggered_alert:
                 parent_text = slack.format_market_anomaly_parent(event, cmp)
                 ts = await slack.post_market_anomaly_alert(event, parent_text)
                 assert event.id is not None
                 await self._repo.update_slack_ts(event.id, ts)
-                logger.info(
-                    "Posted standalone market anomaly alert for %s",
-                    event.betpawa_event_id,
-                )
-        except SlackError as e:
-            logger.warning(
-                "Slack market alert failed for %s: %s", event.betpawa_event_id, e
-            )
+            return
+
+        # Post update in existing thread
+        prev_kept = prev_cmp.markets_kept if prev_cmp else 0
+        prev_retention = prev_cmp.retention_pct if prev_cmp else 0.0
+
+        prev_dropped_names = (
+            {d.market_type_name for d in prev_cmp.details.dropped}
+            if prev_cmp else set()
+        )
+        curr_dropped_names = {d.market_type_name for d in cmp.details.dropped}
+
+        recovered = sorted(prev_dropped_names - curr_dropped_names)
+        still_missing = sorted(curr_dropped_names)
+
+        offset_min = {SnapshotPhase.LIVE_2: 2, SnapshotPhase.LIVE_5: 5}
+
+        update_text = slack.format_snapshot_update(
+            match_state=live_snap.match_state,
+            phase_label=f"+{offset_min.get(phase, '?')}min",
+            prev_kept=prev_kept,
+            curr_kept=cmp.markets_kept,
+            prev_retention=prev_retention,
+            curr_retention=cmp.retention_pct,
+            recovered=recovered,
+            still_missing=still_missing,
+            key_markets=self._settings.markets.key_markets,
+        )
+        await slack.post_thread_reply(event.slack_message_ts, update_text)
+        logger.info("Posted %s update for %s", phase.value, event.betpawa_event_id)
 
     async def _check_weekly_report(self, slack: SlackClient, now: datetime) -> None:
         """Check if it's time to generate the weekly report."""
