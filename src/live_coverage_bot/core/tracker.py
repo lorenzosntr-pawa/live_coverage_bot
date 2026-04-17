@@ -2,10 +2,9 @@
 
 import logging
 from datetime import datetime
-from typing import Any
 
 from live_coverage_bot.db.repository import EventRepository
-from live_coverage_bot.models.events import EventStatus, TrackedEvent
+from live_coverage_bot.models.events import EventStatus, RemovedResult, TrackedEvent, TransitionResult
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class EventLifecycleTracker:
 
     async def register_prematch_events(
         self,
-        prematch_feed: list[dict[str, Any]],
+        prematch_feed: list[dict],
         now: datetime,
     ) -> list[str]:
         """Register new prematch events from the feed. Returns list of new event IDs."""
@@ -57,7 +56,7 @@ class EventLifecycleTracker:
         self,
         live_betpawa_ids: set[str],
         now: datetime,
-    ) -> list[dict[str, Any]]:
+    ) -> list[TransitionResult]:
         """Check all active events for state transitions.
 
         Matches by BetPawa event ID (stable across prematch and live feeds).
@@ -68,7 +67,7 @@ class EventLifecycleTracker:
         from datetime import timedelta
 
         active_events = await self._repo.get_active_events()
-        transitions: list[dict[str, Any]] = []
+        transitions: list[TransitionResult] = []
 
         for event in active_events:
             assert event.id is not None
@@ -100,13 +99,13 @@ class EventLifecycleTracker:
                 "Recovered REMOVED event to LIVE: %s %s vs %s",
                 event.betpawa_event_id, event.home_team, event.away_team,
             )
-            transitions.append({
-                "betpawa_event_id": event.betpawa_event_id,
-                "event": event,
-                "old_status": EventStatus.REMOVED,
-                "new_status": EventStatus.LIVE,
-                "delay_sec": delay_sec,
-            })
+            transitions.append(TransitionResult(
+                event=event,
+                old_status=EventStatus.REMOVED,
+                new_status=EventStatus.LIVE,
+                delay_sec=delay_sec,
+                details="Recovered: appeared in live feed after being marked REMOVED",
+            ))
 
         return transitions
 
@@ -115,7 +114,7 @@ class EventLifecycleTracker:
         current_prematch_ids: set[str],
         now: datetime,
         kickoff_buffer_minutes: int = 30,
-    ) -> list[dict[str, Any]]:
+    ) -> list[RemovedResult]:
         """Detect PREMATCH events that disappeared from the feed before kickoff.
 
         Events close to kickoff are NOT marked as REMOVED even if they vanish
@@ -125,7 +124,7 @@ class EventLifecycleTracker:
         appear in live; post-kickoff, check_transitions/hard_timeout handles it.
         """
         active_events = await self._repo.get_active_events()
-        removed: list[dict[str, Any]] = []
+        removed: list[RemovedResult] = []
 
         for event in active_events:
             assert event.id is not None
@@ -148,12 +147,11 @@ class EventLifecycleTracker:
                 changed_at=now,
                 details="Disappeared from prematch feed before kickoff",
             )
-            removed.append({
-                "betpawa_event_id": event.betpawa_event_id,
-                "event": event,
-                "old_status": EventStatus.PREMATCH,
-                "new_status": EventStatus.REMOVED,
-            })
+            removed.append(RemovedResult(
+                event=event,
+                old_status=EventStatus.PREMATCH,
+                details="Disappeared from prematch feed before kickoff",
+            ))
             logger.info(
                 "Event removed: %s %s vs %s",
                 event.betpawa_event_id, event.home_team, event.away_team,
@@ -166,7 +164,7 @@ class EventLifecycleTracker:
         event: TrackedEvent,
         is_in_live_feed: bool,
         now: datetime,
-    ) -> dict[str, Any] | None:
+    ) -> TransitionResult | None:
         """Evaluate a single event for state transition."""
         assert event.id is not None
         elapsed_sec = (now - event.scheduled_kickoff).total_seconds()
@@ -175,62 +173,62 @@ class EventLifecycleTracker:
 
         if event.status == EventStatus.PREMATCH and is_in_live_feed:
             delay_sec = max(0, int(elapsed_sec))
+            details = f"Went live ({delay_sec // 60}min after kickoff)" if delay_sec > 0 else "Went live on time"
             await self._repo.update_status(event.id, EventStatus.LIVE, updated_at=now)
             await self._repo.update_live_fields(event.id, first_seen_live=now, transition_delay_sec=delay_sec)
             await self._repo.insert_state_change(
-                event.id, old_status, EventStatus.LIVE, now,
-                details=f"Went live ({delay_sec // 60}min after kickoff)" if delay_sec > 0 else "Went live on time",
+                event.id, old_status, EventStatus.LIVE, now, details=details,
             )
-            return {
-                "betpawa_event_id": event.betpawa_event_id,
-                "event": event,
-                "old_status": old_status,
-                "new_status": EventStatus.LIVE,
-                "delay_sec": delay_sec,
-            }
+            return TransitionResult(
+                event=event,
+                old_status=old_status,
+                new_status=EventStatus.LIVE,
+                delay_sec=delay_sec,
+                details=details,
+            )
 
         if event.status == EventStatus.PREMATCH and not is_in_live_feed:
             if elapsed_min >= self._grace_period_minutes:
+                details = f"{int(elapsed_min)}min past kickoff"
                 await self._repo.update_status(event.id, EventStatus.LATE, updated_at=now)
                 await self._repo.insert_state_change(
-                    event.id, old_status, EventStatus.LATE, now,
-                    details=f"{int(elapsed_min)}min past kickoff",
+                    event.id, old_status, EventStatus.LATE, now, details=details,
                 )
-                return {
-                    "betpawa_event_id": event.betpawa_event_id,
-                    "event": event,
-                    "old_status": old_status,
-                    "new_status": EventStatus.LATE,
-                }
+                return TransitionResult(
+                    event=event,
+                    old_status=old_status,
+                    new_status=EventStatus.LATE,
+                    details=details,
+                )
 
         if event.status == EventStatus.LATE and is_in_live_feed:
             delay_sec = max(0, int(elapsed_sec))
+            details = f"Went live (delay: {delay_sec // 60}min)"
             await self._repo.update_status(event.id, EventStatus.LIVE, updated_at=now)
             await self._repo.update_live_fields(event.id, first_seen_live=now, transition_delay_sec=delay_sec)
             await self._repo.insert_state_change(
-                event.id, old_status, EventStatus.LIVE, now,
-                details=f"Went live (delay: {delay_sec // 60}min)",
+                event.id, old_status, EventStatus.LIVE, now, details=details,
             )
-            return {
-                "betpawa_event_id": event.betpawa_event_id,
-                "event": event,
-                "old_status": old_status,
-                "new_status": EventStatus.LIVE,
-                "delay_sec": delay_sec,
-            }
+            return TransitionResult(
+                event=event,
+                old_status=old_status,
+                new_status=EventStatus.LIVE,
+                delay_sec=delay_sec,
+                details=details,
+            )
 
         if event.status == EventStatus.LATE and not is_in_live_feed:
             if elapsed_min >= self._hard_timeout_minutes:
+                details = f"Timed out after {int(elapsed_min)}min"
                 await self._repo.update_status(event.id, EventStatus.NEVER_LIVE, updated_at=now)
                 await self._repo.insert_state_change(
-                    event.id, old_status, EventStatus.NEVER_LIVE, now,
-                    details=f"Timed out after {int(elapsed_min)}min",
+                    event.id, old_status, EventStatus.NEVER_LIVE, now, details=details,
                 )
-                return {
-                    "betpawa_event_id": event.betpawa_event_id,
-                    "event": event,
-                    "old_status": old_status,
-                    "new_status": EventStatus.NEVER_LIVE,
-                }
+                return TransitionResult(
+                    event=event,
+                    old_status=old_status,
+                    new_status=EventStatus.NEVER_LIVE,
+                    details=details,
+                )
 
         return None

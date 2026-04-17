@@ -15,7 +15,7 @@ from live_coverage_bot.core.tracker import EventLifecycleTracker
 from live_coverage_bot.db.connection import Database
 from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
-from live_coverage_bot.models.events import EventStatus
+from live_coverage_bot.models.events import EventStatus, TransitionResult
 from live_coverage_bot.models.markets import SnapshotPhase
 
 logger = logging.getLogger(__name__)
@@ -122,9 +122,9 @@ class MonitoringLoop:
         # Lifecycle transitions first — so events going LIVE are not falsely marked REMOVED
         transitions = await self._tracker.check_transitions(live_betpawa_ids, now=now)
         live_transition_bp_ids: set[str] = {
-            t["betpawa_event_id"]
+            t.event.betpawa_event_id
             for t in transitions
-            if t["new_status"] == EventStatus.LIVE
+            if t.new_status == EventStatus.LIVE
         }
 
         for t in transitions:
@@ -160,13 +160,13 @@ class MonitoringLoop:
         )
 
     async def _handle_transition(
-        self, slack: SlackClient, transition: dict, now: datetime
+        self, slack: SlackClient, transition: TransitionResult, now: datetime
     ) -> None:
         """Send Slack alerts/updates for a state transition."""
         assert self._repo is not None
-        event = transition["event"]
-        old_status = transition["old_status"]
-        new_status = transition["new_status"]
+        event = transition.event
+        old_status = transition.old_status
+        new_status = transition.new_status
 
         refreshed = await self._repo.get_by_betpawa_id(event.betpawa_event_id)
         if refreshed is None:
@@ -185,7 +185,7 @@ class MonitoringLoop:
             elif new_status in (EventStatus.LIVE, EventStatus.NEVER_LIVE):
                 if refreshed.slack_message_ts:
                     await slack.update_message(refreshed.slack_message_ts, refreshed, now)
-                    delay_sec = transition.get("delay_sec")
+                    delay_sec = transition.delay_sec
                     if new_status == EventStatus.LIVE and delay_sec is not None:
                         detail = f"delay: {delay_sec // 60}min"
                     elif new_status == EventStatus.NEVER_LIVE:

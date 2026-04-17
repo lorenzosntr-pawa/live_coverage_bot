@@ -66,3 +66,21 @@ class StateChange(BaseModel):
     new_status: EventStatus
     changed_at: datetime
     details: str | None = None
+
+
+class TransitionResult(BaseModel):
+    """Result of a single event state transition."""
+
+    event: TrackedEvent
+    old_status: EventStatus
+    new_status: EventStatus
+    delay_sec: int | None = None
+    details: str = ""
+
+
+class RemovedResult(BaseModel):
+    """Result of detecting a removed event."""
+
+    event: TrackedEvent
+    old_status: EventStatus
+    details: str = ""

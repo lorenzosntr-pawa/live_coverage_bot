@@ -8,7 +8,7 @@ from live_coverage_bot.clients.models import ProviderID, ProviderType
 from live_coverage_bot.core.tracker import EventLifecycleTracker
 from live_coverage_bot.db.connection import Database
 from live_coverage_bot.db.repository import EventRepository
-from live_coverage_bot.models.events import EventStatus
+from live_coverage_bot.models.events import EventStatus, RemovedResult, TransitionResult
 
 
 @pytest.fixture
@@ -92,9 +92,9 @@ class TestCheckTransitions:
 
         assert len(transitions) == 1
         t = transitions[0]
-        assert t["betpawa_event_id"] == "99001"
-        assert t["old_status"] == EventStatus.PREMATCH
-        assert t["new_status"] == EventStatus.LIVE
+        assert t.event.betpawa_event_id == "99001"
+        assert t.old_status == EventStatus.PREMATCH
+        assert t.new_status == EventStatus.LIVE
 
         event = await repo.get_by_betpawa_id("99001")
         assert event.status == EventStatus.LIVE
@@ -122,7 +122,7 @@ class TestCheckTransitions:
         transitions = await tracker.check_transitions(set(), now=now_late)
 
         assert len(transitions) == 1
-        assert transitions[0]["new_status"] == EventStatus.LATE
+        assert transitions[0].new_status == EventStatus.LATE
 
     async def test_late_to_live(self, tracker, repo):
         kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
@@ -150,8 +150,8 @@ class TestCheckTransitions:
         transitions = await tracker.check_transitions(live_betpawa_ids, now=now_live)
 
         assert len(transitions) == 1
-        assert transitions[0]["old_status"] == EventStatus.LATE
-        assert transitions[0]["new_status"] == EventStatus.LIVE
+        assert transitions[0].old_status == EventStatus.LATE
+        assert transitions[0].new_status == EventStatus.LIVE
 
         event = await repo.get_by_betpawa_id("99001")
         assert event.status == EventStatus.LIVE
@@ -182,7 +182,7 @@ class TestCheckTransitions:
         transitions = await tracker.check_transitions(set(), now=now_timeout)
 
         assert len(transitions) == 1
-        assert transitions[0]["new_status"] == EventStatus.NEVER_LIVE
+        assert transitions[0].new_status == EventStatus.NEVER_LIVE
 
 
 class TestDetectRemoved:
@@ -209,7 +209,7 @@ class TestDetectRemoved:
             current_prematch_ids=set(), now=now_check
         )
         assert len(removed) == 1
-        assert removed[0]["betpawa_event_id"] == "99001"
+        assert removed[0].event.betpawa_event_id == "99001"
 
     async def test_not_removed_if_still_in_feed(self, tracker, repo):
         kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
@@ -234,3 +234,60 @@ class TestDetectRemoved:
             current_prematch_ids={"99001"}, now=now_check
         )
         assert len(removed) == 0
+
+
+class TestTypedReturns:
+    async def test_check_transitions_returns_transition_results(self, db):
+        from live_coverage_bot.db.repository import EventRepository
+        from live_coverage_bot.core.tracker import EventLifecycleTracker
+        from live_coverage_bot.models.events import EventStatus, TrackedEvent
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo)
+        event = TrackedEvent(
+            betpawa_event_id="100",
+            home_team="A",
+            away_team="B",
+            competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 15, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="1")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        )
+        await repo.insert_event(event)
+
+        now = datetime(2026, 4, 15, 15, 6, tzinfo=UTC)
+        results = await tracker.check_transitions(set(), now=now)
+        assert len(results) == 1
+        assert isinstance(results[0], TransitionResult)
+        assert results[0].new_status == EventStatus.LATE
+        assert results[0].old_status == EventStatus.PREMATCH
+
+    async def test_detect_removed_returns_removed_results(self, db):
+        from live_coverage_bot.db.repository import EventRepository
+        from live_coverage_bot.core.tracker import EventLifecycleTracker
+        from live_coverage_bot.models.events import EventStatus, TrackedEvent
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo)
+        event = TrackedEvent(
+            betpawa_event_id="200",
+            home_team="C",
+            away_team="D",
+            competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 16, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="2")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        )
+        await repo.insert_event(event)
+
+        now = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        results = await tracker.detect_removed(set(), now=now)
+        assert len(results) == 1
+        assert isinstance(results[0], RemovedResult)
+        assert results[0].old_status == EventStatus.PREMATCH
