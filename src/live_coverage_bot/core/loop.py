@@ -154,11 +154,11 @@ class MonitoringLoop:
             live_transition_event_ids=live_transition_bp_ids,
         )
 
-        # For each LIVE snapshot taken this cycle, run comparison + alert routing
+        # For each live snapshot taken this cycle, run comparison + alert routing
         for event_id, phase in taken:
-            if phase != SnapshotPhase.LIVE:
+            if not phase.is_live:
                 continue
-            await self._handle_market_comparison(slack, event_id, now)
+            await self._handle_market_comparison(slack, event_id, phase, now)
 
         # Cycle summary
         active = await self._repo.get_active_events()
@@ -216,9 +216,9 @@ class MonitoringLoop:
             logger.warning("Slack operation failed for %s: %s", refreshed.betpawa_event_id, e)
 
     async def _handle_market_comparison(
-        self, slack: SlackClient, event_id: int, now: datetime
+        self, slack: SlackClient, event_id: int, phase: SnapshotPhase, now: datetime
     ) -> None:
-        """Run comparison for a freshly stored LIVE snapshot; route to Slack if noteworthy."""
+        """Run comparison for a freshly stored live snapshot; route to Slack if noteworthy."""
         assert self._repo is not None
         assert self._market_repo is not None
 
@@ -231,12 +231,13 @@ class MonitoringLoop:
 
         all_snaps = await self._market_repo.get_snapshots_for_event(event_id)
         live_snap = next(
-            (s for s in reversed(all_snaps) if s.phase == SnapshotPhase.LIVE), None
+            (s for s in reversed(all_snaps) if s.phase == phase), None
         )
         if live_snap is None:
             return
 
         cmp = compare_snapshots(prematch_snap, live_snap, self._settings.markets, now=now)
+        cmp.snapshot_phase = phase
 
         try:
             await self._market_repo.insert_comparison(cmp)

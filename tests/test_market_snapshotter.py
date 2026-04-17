@@ -1,7 +1,7 @@
 """Tests for the market snapshotter."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -113,7 +113,7 @@ class TestPhaseWindow:
         )
 
         phases = await market_repo.phases_taken_for_event(prematch_event_id)
-        assert SnapshotPhase.LIVE in phases
+        assert SnapshotPhase.LIVE_0 in phases
 
     async def test_disabled_does_nothing(self, event_repo, market_repo, prematch_event_id):
         mock_betpawa = AsyncMock()
@@ -142,3 +142,53 @@ class TestPhaseWindow:
 
         phases = await market_repo.phases_taken_for_event(prematch_event_id)
         assert SnapshotPhase.PREMATCH_60 not in phases
+
+
+def _live_event(first_seen_live: datetime) -> TrackedEvent:
+    return TrackedEvent(
+        id=1,
+        betpawa_event_id="700",
+        home_team="A", away_team="B", competition="Test",
+        scheduled_kickoff=datetime(2026, 4, 15, 15, 0, tzinfo=UTC),
+        status=EventStatus.LIVE,
+        provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="1")],
+        first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        first_seen_live=first_seen_live,
+    )
+
+
+class TestLiveFollowUpPhases:
+    def test_live_2_due_after_2_minutes(self):
+        config = MarketsConfig()
+        snapshotter = MarketSnapshotter(MagicMock(), MagicMock(), MagicMock(), config)
+        event = _live_event(first_seen_live=datetime(2026, 4, 15, 15, 0, tzinfo=UTC))
+        now = datetime(2026, 4, 15, 15, 2, 30, tzinfo=UTC)
+        phases = snapshotter._live_follow_up_phases_due(event, now)
+        assert SnapshotPhase.LIVE_2 in phases
+        assert SnapshotPhase.LIVE_5 not in phases
+
+    def test_live_5_due_after_5_minutes(self):
+        config = MarketsConfig()
+        snapshotter = MarketSnapshotter(MagicMock(), MagicMock(), MagicMock(), config)
+        event = _live_event(first_seen_live=datetime(2026, 4, 15, 15, 0, tzinfo=UTC))
+        now = datetime(2026, 4, 15, 15, 5, 30, tzinfo=UTC)
+        phases = snapshotter._live_follow_up_phases_due(event, now)
+        assert SnapshotPhase.LIVE_2 in phases
+        assert SnapshotPhase.LIVE_5 in phases
+
+    def test_no_phases_before_2_minutes(self):
+        config = MarketsConfig()
+        snapshotter = MarketSnapshotter(MagicMock(), MagicMock(), MagicMock(), config)
+        event = _live_event(first_seen_live=datetime(2026, 4, 15, 15, 0, tzinfo=UTC))
+        now = datetime(2026, 4, 15, 15, 1, 0, tzinfo=UTC)
+        phases = snapshotter._live_follow_up_phases_due(event, now)
+        assert len(phases) == 0
+
+    def test_no_phases_for_non_live_event(self):
+        config = MarketsConfig()
+        snapshotter = MarketSnapshotter(MagicMock(), MagicMock(), MagicMock(), config)
+        event = _live_event(first_seen_live=datetime(2026, 4, 15, 15, 0, tzinfo=UTC))
+        event.status = EventStatus.PREMATCH
+        now = datetime(2026, 4, 15, 15, 5, 30, tzinfo=UTC)
+        phases = snapshotter._live_follow_up_phases_due(event, now)
+        assert len(phases) == 0

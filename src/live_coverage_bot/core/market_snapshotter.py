@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 
 from live_coverage_bot.clients.betpawa import BetPawaClient, BetPawaError
+from live_coverage_bot.clients.parsers import parse_match_state
 from live_coverage_bot.config.models import MarketsConfig
 from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
@@ -60,14 +61,23 @@ class MarketSnapshotter:
                 if phase not in taken:
                     plan.append((event, phase))
 
+        # Follow-up live snapshots (LIVE_2, LIVE_5) for events already live
+        for event in active:
+            if event.status != EventStatus.LIVE or event.id is None:
+                continue
+            taken = await self._markets.phases_taken_for_event(event.id)
+            for phase in self._live_follow_up_phases_due(event, now):
+                if phase not in taken:
+                    plan.append((event, phase))
+
         if live_transition_event_ids:
             for bp_id in live_transition_event_ids:
                 event = await self._events.get_by_betpawa_id(bp_id)
                 if event is None or event.id is None:
                     continue
                 taken = await self._markets.phases_taken_for_event(event.id)
-                if SnapshotPhase.LIVE not in taken:
-                    plan.append((event, SnapshotPhase.LIVE))
+                if SnapshotPhase.LIVE_0 not in taken:
+                    plan.append((event, SnapshotPhase.LIVE_0))
 
         if not plan:
             return []
@@ -101,6 +111,31 @@ class MarketSnapshotter:
             phases.append(SnapshotPhase.PREMATCH_1)
         return phases
 
+    def _live_follow_up_phases_due(
+        self, event: TrackedEvent, now: datetime
+    ) -> list[SnapshotPhase]:
+        """Return follow-up live phases that are due for this event."""
+        if event.status != EventStatus.LIVE or event.first_seen_live is None:
+            return []
+
+        elapsed_min = (now - event.first_seen_live).total_seconds() / 60.0
+
+        # Map config offsets to phase values (skip 0 — that's LIVE_0, taken on transition)
+        offset_phase_map: dict[int, SnapshotPhase] = {
+            2: SnapshotPhase.LIVE_2,
+            5: SnapshotPhase.LIVE_5,
+        }
+
+        phases: list[SnapshotPhase] = []
+        for offset in self._config.live_snapshot_offsets_minutes:
+            if offset == 0:
+                continue
+            phase = offset_phase_map.get(offset)
+            if phase and elapsed_min >= offset:
+                phases.append(phase)
+
+        return phases
+
     async def _take_snapshot(
         self, event: TrackedEvent, phase: SnapshotPhase, now: datetime
     ) -> tuple[int, SnapshotPhase] | None:
@@ -117,6 +152,15 @@ class MarketSnapshotter:
 
         duration_ms = int((time.monotonic() - started) * 1000)
 
+        match_state = None
+        if phase.is_live:
+            try:
+                response = await self._betpawa._client.get(f"/events/{event.betpawa_event_id}")
+                response.raise_for_status()
+                match_state = parse_match_state(response.json())
+            except Exception:
+                logger.debug("Could not fetch match state for %s", event.betpawa_event_id)
+
         total_selections = sum(len(r.selections) for m in markets for r in m.rows)
         suspended = sum(
             1 for m in markets for r in m.rows for s in r.selections if s.suspended
@@ -130,6 +174,7 @@ class MarketSnapshotter:
             total_market_count=len(markets),
             total_selection_count=total_selections,
             suspended_count=suspended,
+            match_state=match_state,
         )
         try:
             await self._markets.insert_snapshot(snapshot, fetch_duration_ms=duration_ms)
