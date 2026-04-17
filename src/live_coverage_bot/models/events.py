@@ -22,7 +22,7 @@ class EventStatus(StrEnum):
     @property
     def is_terminal(self) -> bool:
         """Whether this status represents a final state (no further transitions)."""
-        return self in (EventStatus.LIVE, EventStatus.NEVER_LIVE, EventStatus.REMOVED)
+        return self in (EventStatus.LIVE, EventStatus.NEVER_LIVE)
 
 
 class TrackedEvent(BaseModel):
@@ -41,6 +41,8 @@ class TrackedEvent(BaseModel):
     first_seen_live: datetime | None = None
     transition_delay_sec: int | None = None
     slack_message_ts: str | None = None
+    removed_at: datetime | None = None
+    pre_removal_market_count: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

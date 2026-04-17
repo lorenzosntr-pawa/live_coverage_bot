@@ -9,6 +9,7 @@ from live_coverage_bot.models.markets import (
     MarketComparison,
     MarketRow,
     MarketSnapshot,
+    MatchState,
     Selection,
     SnapshotPhase,
 )
@@ -120,3 +121,36 @@ class TestMarketComparison:
         assert c.retention_pct == 39.1
         assert c.triggered_alert
         assert "Both Teams To Score - FT" in c.dropped_key_markets
+
+
+class TestMatchState:
+    def test_format_display(self):
+        ms = MatchState(minute="33", period="First Half", home_score=1, away_score=0)
+        assert ms.display == "\u23f1 33' | First Half | 1-0"
+
+    def test_format_display_no_data(self):
+        ms = MatchState()
+        assert ms.display == "\u23f1 ?' | ? | ?-?"
+
+    def test_json_round_trip(self):
+        ms = MatchState(minute="10", period="First Half", home_score=0, away_score=0)
+        data = ms.model_dump()
+        restored = MatchState(**data)
+        assert restored == ms
+
+
+class TestNewSnapshotPhases:
+    def test_pre_removal_is_prematch(self):
+        assert SnapshotPhase.PRE_REMOVAL.is_prematch
+
+    def test_live_0_is_not_prematch(self):
+        assert not SnapshotPhase.LIVE_0.is_prematch
+
+    def test_live_phases(self):
+        assert SnapshotPhase.LIVE_0.is_live
+        assert SnapshotPhase.LIVE_2.is_live
+        assert SnapshotPhase.LIVE_5.is_live
+        assert not SnapshotPhase.PREMATCH_60.is_live
+
+    def test_legacy_live_is_live(self):
+        assert SnapshotPhase.LIVE.is_live

@@ -17,7 +17,7 @@ class TestEventStatus:
     def test_terminal_states(self):
         assert EventStatus.LIVE.is_terminal
         assert EventStatus.NEVER_LIVE.is_terminal
-        assert EventStatus.REMOVED.is_terminal
+        assert not EventStatus.REMOVED.is_terminal  # REMOVED is no longer terminal — we keep watching
         assert not EventStatus.PREMATCH.is_terminal
         assert not EventStatus.LATE.is_terminal
 

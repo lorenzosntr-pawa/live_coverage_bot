@@ -9,21 +9,54 @@ from pydantic import BaseModel
 JSON_SEPARATORS: tuple[str, str] = (",", ":")
 
 
+class MatchState(BaseModel):
+    """Match state at time of snapshot (score, minute, period)."""
+
+    minute: str | None = None
+    period: str | None = None
+    home_score: int | None = None
+    away_score: int | None = None
+
+    @property
+    def display(self) -> str:
+        """Format as '⏱ 33' | First Half | 1-0'."""
+        m = self.minute or "?"
+        p = self.period or "?"
+        h = self.home_score if self.home_score is not None else "?"
+        a = self.away_score if self.away_score is not None else "?"
+        return f"\u23f1 {m}' | {p} | {h}-{a}"
+
+
 class SnapshotPhase(StrEnum):
     """Market snapshot phases for a tracked event."""
 
     PREMATCH_60 = "PREMATCH_60"
     PREMATCH_15 = "PREMATCH_15"
     PREMATCH_1 = "PREMATCH_1"
-    LIVE = "LIVE"
+    PRE_REMOVAL = "PRE_REMOVAL"
+    LIVE = "LIVE"        # Legacy — kept for backward compat with existing DB rows
+    LIVE_0 = "LIVE_0"
+    LIVE_2 = "LIVE_2"
+    LIVE_5 = "LIVE_5"
 
     @property
     def is_prematch(self) -> bool:
-        """True for any prematch phase."""
+        """True for any prematch phase (including PRE_REMOVAL)."""
         return self in (
             SnapshotPhase.PREMATCH_60,
             SnapshotPhase.PREMATCH_15,
             SnapshotPhase.PREMATCH_1,
+            SnapshotPhase.PRE_REMOVAL,
+        )
+
+    @property
+    def is_live(self) -> bool:
+        """True for any live phase."""
+        return self in (
+            SnapshotPhase.LIVE,
+            SnapshotPhase.LIVE_0,
+            SnapshotPhase.LIVE_2,
+            SnapshotPhase.LIVE_5,
         )
 
 
@@ -99,6 +132,7 @@ class MarketSnapshot(BaseModel):
     total_market_count: int
     total_selection_count: int
     suspended_count: int
+    match_state: MatchState | None = None
 
     @property
     def markets_json(self) -> str:
@@ -119,6 +153,7 @@ class MarketComparison(BaseModel):
     event_id: int
     compared_at: datetime
     prematch_phase: SnapshotPhase
+    snapshot_phase: SnapshotPhase | None = None
     markets_added: int
     markets_dropped: int
     markets_kept: int
