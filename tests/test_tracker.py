@@ -236,6 +236,65 @@ class TestDetectRemoved:
         assert len(removed) == 0
 
 
+class TestEnhancedRemoval:
+    async def test_detect_removed_records_removed_at(self, db):
+        from live_coverage_bot.db.repository import EventRepository
+        from live_coverage_bot.core.tracker import EventLifecycleTracker
+        from live_coverage_bot.models.events import EventStatus, TrackedEvent
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo)
+        event = TrackedEvent(
+            betpawa_event_id="400",
+            home_team="E", away_team="F", competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 18, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="3")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        )
+        await repo.insert_event(event)
+
+        now = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        results = await tracker.detect_removed(set(), now=now)
+        assert len(results) == 1
+
+        fetched = await repo.get_by_betpawa_id("400")
+        assert fetched is not None
+        assert fetched.removed_at == now
+
+    async def test_removed_to_prematch_recovery(self, db):
+        from live_coverage_bot.db.repository import EventRepository
+        from live_coverage_bot.core.tracker import EventLifecycleTracker
+        from live_coverage_bot.models.events import EventStatus, TrackedEvent, TransitionResult
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo)
+        event = TrackedEvent(
+            betpawa_event_id="401",
+            home_team="G", away_team="H", competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 18, 0, tzinfo=UTC),
+            status=EventStatus.REMOVED,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="4")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+            removed_at=datetime(2026, 4, 15, 14, 0, tzinfo=UTC),
+        )
+        await repo.insert_event(event)
+
+        now = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        recoveries = await tracker.detect_prematch_recovery({"401"}, now=now)
+        assert len(recoveries) == 1
+        assert isinstance(recoveries[0], TransitionResult)
+        assert recoveries[0].new_status == EventStatus.PREMATCH
+
+        fetched = await repo.get_by_betpawa_id("401")
+        assert fetched is not None
+        assert fetched.status == EventStatus.PREMATCH
+
+
 class TestTypedReturns:
     async def test_check_transitions_returns_transition_results(self, db):
         from live_coverage_bot.db.repository import EventRepository

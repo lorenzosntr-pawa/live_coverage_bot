@@ -88,13 +88,20 @@ class EventLifecycleTracker:
                 continue
             elapsed_sec = (now - event.scheduled_kickoff).total_seconds()
             delay_sec = max(0, int(elapsed_sec))
+            gap_min = 0
+            if event.removed_at:
+                gap_min = int((now - event.removed_at).total_seconds() / 60)
+            details = (
+                f"Reappeared directly in live at {now.strftime('%H:%M')} UTC "
+                f"after {gap_min}min gap"
+            )
             await self._repo.update_status(event.id, EventStatus.LIVE, updated_at=now)
             await self._repo.update_live_fields(
                 event.id, first_seen_live=now, transition_delay_sec=delay_sec
             )
             await self._repo.insert_state_change(
                 event.id, EventStatus.REMOVED, EventStatus.LIVE, now,
-                details="Recovered: appeared in live feed after being marked REMOVED",
+                details=details,
             )
             logger.info(
                 "Recovered REMOVED event to LIVE: %s %s vs %s",
@@ -105,7 +112,7 @@ class EventLifecycleTracker:
                 old_status=EventStatus.REMOVED,
                 new_status=EventStatus.LIVE,
                 delay_sec=delay_sec,
-                details="Recovered: appeared in live feed after being marked REMOVED",
+                details=details,
             ))
 
         return transitions
@@ -141,17 +148,20 @@ class EventLifecycleTracker:
                 continue
 
             await self._repo.update_status(event.id, EventStatus.REMOVED, updated_at=now)
+            await self._repo.update_removed_fields(event.id, removed_at=now)
+            minutes_before = int(minutes_to_kickoff)
+            details = f"Disappeared from prematch at {now.strftime('%H:%M')} UTC, {minutes_before}min before kickoff"
             await self._repo.insert_state_change(
                 event_id=event.id,
                 old_status=EventStatus.PREMATCH,
                 new_status=EventStatus.REMOVED,
                 changed_at=now,
-                details="Disappeared from prematch feed before kickoff",
+                details=details,
             )
             removed.append(RemovedResult(
                 event=event,
                 old_status=EventStatus.PREMATCH,
-                details="Disappeared from prematch feed before kickoff",
+                details=details,
             ))
             logger.info(
                 "Event removed: %s %s vs %s",
@@ -159,6 +169,49 @@ class EventLifecycleTracker:
             )
 
         return removed
+
+    async def detect_prematch_recovery(
+        self,
+        current_prematch_ids: set[str],
+        now: datetime,
+    ) -> list[TransitionResult]:
+        """Detect REMOVED events that reappeared in the prematch feed."""
+        from datetime import timedelta
+
+        lookback = now - timedelta(hours=24)
+        removed_events = await self._repo.get_recent_removed_events(lookback)
+        recoveries: list[TransitionResult] = []
+
+        for event in removed_events:
+            assert event.id is not None
+            if event.betpawa_event_id not in current_prematch_ids:
+                continue
+
+            gap_min = 0
+            if event.removed_at:
+                gap_min = int((now - event.removed_at).total_seconds() / 60)
+
+            await self._repo.update_status(event.id, EventStatus.PREMATCH, updated_at=now)
+            details = (
+                f"Reappeared in prematch at {now.strftime('%H:%M')} UTC "
+                f"after {gap_min}min gap"
+            )
+            await self._repo.insert_state_change(
+                event.id, EventStatus.REMOVED, EventStatus.PREMATCH, now,
+                details=details,
+            )
+            logger.info(
+                "Recovered REMOVED to PREMATCH: %s %s vs %s (gap: %dmin)",
+                event.betpawa_event_id, event.home_team, event.away_team, gap_min,
+            )
+            recoveries.append(TransitionResult(
+                event=event,
+                old_status=EventStatus.REMOVED,
+                new_status=EventStatus.PREMATCH,
+                details=details,
+            ))
+
+        return recoveries
 
     async def _evaluate_transition(
         self,

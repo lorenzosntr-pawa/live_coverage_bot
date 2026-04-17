@@ -138,6 +138,13 @@ class MonitoringLoop:
             if removed:
                 logger.info("Detected %d removed prematch events", len(removed))
 
+            # Check if any REMOVED events reappeared in prematch
+            prematch_recoveries = await self._tracker.detect_prematch_recovery(
+                current_prematch_ids, now=now
+            )
+            for recovery in prematch_recoveries:
+                await self._handle_transition(slack, recovery, now)
+
         # Market snapshots (prematch windows + live on transition)
         snapshotter = MarketSnapshotter(
             self._repo, self._market_repo, betpawa, self._settings.markets
