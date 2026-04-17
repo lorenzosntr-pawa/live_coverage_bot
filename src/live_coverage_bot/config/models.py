@@ -82,6 +82,8 @@ class MarketsConfig(BaseModel):
         "Double Chance - FT",
         "1X2 - 1H",
     ]
+    live_snapshot_offsets_minutes: list[int] = [0, 2, 5]
+    odds_shift_display_threshold: float = 5.0
 
 
 class Settings(BaseSettings):

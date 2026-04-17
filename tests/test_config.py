@@ -96,3 +96,15 @@ class TestMarketsConfig:
         )
         assert settings.markets.enabled is True
         assert settings.markets.alert_thresholds.retention_below_pct == 50
+
+
+class TestNewMarketConfig:
+    def test_default_live_snapshot_offsets(self):
+        from live_coverage_bot.config.models import MarketsConfig
+        cfg = MarketsConfig()
+        assert cfg.live_snapshot_offsets_minutes == [0, 2, 5]
+
+    def test_default_odds_shift_display_threshold(self):
+        from live_coverage_bot.config.models import MarketsConfig
+        cfg = MarketsConfig()
+        assert cfg.odds_shift_display_threshold == 5.0
