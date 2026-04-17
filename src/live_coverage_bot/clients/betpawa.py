@@ -155,9 +155,6 @@ class BetPawaClient:
         except httpx.RequestError as e:
             logger.error("BetPawa API request failed: %s", e)
             raise BetPawaError(f"Request failed: {e}") from e
-        except Exception as e:
-            logger.error("Unexpected error fetching upcoming events: %s", e)
-            raise BetPawaError(f"Unexpected error: {e}") from e
 
     async def get_live_events(self) -> list[LiveEvent]:
         """Fetch all live football events from BetPawa.
@@ -221,9 +218,6 @@ class BetPawaClient:
         except httpx.RequestError as e:
             logger.error("BetPawa API request failed: %s", e)
             raise BetPawaError(f"Request failed: {e}") from e
-        except Exception as e:
-            logger.error("Unexpected error fetching live events: %s", e)
-            raise BetPawaError(f"Unexpected error: {e}") from e
 
     def _parse_events(self, data: dict[str, Any]) -> list[LiveEvent]:
         """Parse API response into LiveEvent models.

@@ -9,6 +9,7 @@ from live_coverage_bot.clients.betpawa import BetPawaClient, BetPawaError
 from live_coverage_bot.clients.slack import SlackClient, SlackError
 from live_coverage_bot.config.models import Settings
 from live_coverage_bot.core.market_comparator import compare_snapshots
+from live_coverage_bot.core.market_reporter import MarketReporter
 from live_coverage_bot.core.market_snapshotter import MarketSnapshotter
 from live_coverage_bot.core.reporter import WeeklyReporter
 from live_coverage_bot.core.tracker import EventLifecycleTracker
@@ -63,8 +64,10 @@ class MonitoringLoop:
                     await self._poll_cycle(betpawa, slack, now=now)
                     await self._check_weekly_report(slack, now)
                     await self._cleanup_old_events(now)
-                except Exception as e:
-                    logger.exception("Unexpected error in poll cycle: %s", e)
+                except (BetPawaError, SlackError) as e:
+                    logger.warning("Error in poll cycle: %s", e)
+                except Exception:
+                    logger.exception("Unexpected error in poll cycle")
 
                 await asyncio.sleep(self._settings.polling.live_interval_seconds)
 
@@ -281,8 +284,6 @@ class MonitoringLoop:
 
         if self._last_report_date and self._last_report_date.date() == now.date():
             return
-
-        from live_coverage_bot.core.market_reporter import MarketReporter
 
         reporter = WeeklyReporter(self._repo, week_starts=cfg.week_starts)
         market_reporter = MarketReporter(self._repo, self._market_repo)
