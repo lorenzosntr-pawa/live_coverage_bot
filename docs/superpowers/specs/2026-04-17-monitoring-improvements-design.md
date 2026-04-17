@@ -40,6 +40,8 @@ State changes logged with enriched details:
 | `REMOVED -> PREMATCH` | "Reappeared in prematch at HH:MM after X min gap, now has Y markets (was Z before removal)" |
 | `REMOVED -> LIVE` | "Reappeared directly in live at HH:MM after X min gap, with Y markets" |
 
+After `REMOVED -> PREMATCH`, the event returns to normal PREMATCH tracking and follows the standard lifecycle (PREMATCH -> LATE -> LIVE or NEVER_LIVE).
+
 #### 1.4 Slack Notifications
 
 **On removal:** Post alert (existing behavior) but include market count in the message:
@@ -184,7 +186,7 @@ When an event transitions to LIVE:
    - `LIVE_2`: eligible when `now - first_seen_live >= 2 minutes` and no `LIVE_2` snapshot exists.
    - `LIVE_5`: eligible when `now - first_seen_live >= 5 minutes` and no `LIVE_5` snapshot exists.
 
-No new scheduler or timer needed — the existing poll loop (every 30s) naturally picks these up within one cycle of eligibility.
+No new scheduler or timer needed — the existing poll loop (every 30s) naturally picks these up within one cycle of eligibility. Snapshot times are approximate (e.g., `LIVE_2` may be taken at 2:00-2:30 depending on poll alignment). This is acceptable — exact timing is not required.
 
 #### 3.3 Comparison Per Snapshot
 
@@ -245,7 +247,7 @@ Both specs add columns to existing tables. Approach:
 Detailed thread replies could get long with many dropped markets or odds shifts. Mitigations:
 - Cap displayed non-key markets at 7 + count.
 - Odds shifts filtered by threshold (default 5%).
-- If a single message exceeds Slack's 3000-char block limit, split into multiple thread replies.
+- If a single message exceeds Slack's 4000-char `text` field limit, split into multiple thread replies. All messages use the plain `text` field (consistent with existing code — no blocks API).
 
 ### Performance
 
