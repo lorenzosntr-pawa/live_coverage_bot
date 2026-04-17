@@ -189,7 +189,7 @@ class TestSlackMarketMessages:
         text = client.format_market_anomaly_parent(sample_event, cmp)
         assert "MARKET ANOMALY" in text
         assert "Arsenal vs Chelsea" in text
-        assert "28" in text
+        assert "retention" in text
         assert "1X2 - FT" in text
 
     async def test_post_market_recap(self, slack_config):
@@ -216,6 +216,86 @@ class TestSlackMarketMessages:
         with patch.object(client._client, "post", return_value=mock_response):
             ts = await client.post_market_anomaly_alert(sample_event, "parent text")
             assert ts == "9999.0000"
+
+
+class TestDetailedMarketThread:
+    def test_format_missing_markets(self, slack_config):
+        from live_coverage_bot.models.markets import (
+            DroppedMarketDetail,
+        )
+
+        client = SlackClient(slack_config)
+        dropped = [
+            DroppedMarketDetail(market_type_id="1", market_type_name="1X2 - FT"),
+            DroppedMarketDetail(market_type_id="2", market_type_name="Both Teams To Score - FT"),
+            DroppedMarketDetail(market_type_id="3", market_type_name="Correct Score - FT"),
+        ]
+        text = client.format_missing_markets(dropped, ["1X2 - FT", "Both Teams To Score - FT"])
+        assert "1X2 - FT" in text
+        assert "KEY" in text
+        assert "Correct Score - FT" in text
+
+    def test_format_missing_markets_truncation(self, slack_config):
+        from live_coverage_bot.models.markets import DroppedMarketDetail
+
+        client = SlackClient(slack_config)
+        dropped = [
+            DroppedMarketDetail(market_type_id=str(i), market_type_name=f"Market {i}")
+            for i in range(12)
+        ]
+        text = client.format_missing_markets(dropped, ["Market 0"])
+        assert "KEY" in text
+        assert "more" in text
+
+    def test_format_odds_shifts(self, slack_config):
+        from live_coverage_bot.models.markets import OddsShiftDetail
+
+        client = SlackClient(slack_config)
+        shifts = [
+            OddsShiftDetail(market_type_name="1X2 - FT", selection_name="Home",
+                selection_type_id="1", handicap=None,
+                prematch_price=1.50, live_price=1.85, shift_pct=23.3),
+            OddsShiftDetail(market_type_name="BTTS", selection_name="Yes",
+                selection_type_id="3", handicap=None,
+                prematch_price=1.75, live_price=1.60, shift_pct=8.6),
+        ]
+        text = client.format_odds_shifts(shifts, threshold=5.0)
+        assert "1X2 - FT" in text
+        assert "Home" in text
+        assert "1.50" in text
+        assert "1.85" in text
+        assert "BTTS" in text
+
+    def test_format_odds_shifts_below_threshold(self, slack_config):
+        from live_coverage_bot.models.markets import OddsShiftDetail
+
+        client = SlackClient(slack_config)
+        shifts = [
+            OddsShiftDetail(market_type_name="1X2 - FT", selection_name="Home",
+                selection_type_id="1", handicap=None,
+                prematch_price=2.00, live_price=2.01, shift_pct=0.5),
+        ]
+        text = client.format_odds_shifts(shifts, threshold=5.0)
+        assert "No significant odds shifts" in text
+
+    def test_format_snapshot_update(self, slack_config):
+        from live_coverage_bot.models.markets import MatchState
+
+        client = SlackClient(slack_config)
+        ms = MatchState(minute="4", period="First Half", home_score=0, away_score=0)
+        text = client.format_snapshot_update(
+            match_state=ms, phase_label="+2min",
+            prev_kept=22, curr_kept=31,
+            prev_retention=39.0, curr_retention=55.0,
+            recovered=["Double Chance - FT"], still_missing=["1X2 - FT"],
+            key_markets=["1X2 - FT"],
+        )
+        assert "4'" in text
+        assert "22" in text
+        assert "31" in text
+        assert "Recovered" in text
+        assert "Still missing" in text
+        assert "KEY" in text
 
 
 class TestEventHeaderHelper:

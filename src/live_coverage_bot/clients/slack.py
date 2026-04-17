@@ -219,14 +219,107 @@ class SlackClient:
 
         return "\n".join(lines)
 
+    def format_missing_markets(
+        self,
+        dropped: list,
+        key_market_names: list[str],
+    ) -> str:
+        """Format the missing markets section for a thread reply."""
+        if not dropped:
+            return ""
+
+        key_set = set(key_market_names)
+        key_dropped = [d for d in dropped if d.market_type_name in key_set]
+        non_key_dropped = [d for d in dropped if d.market_type_name not in key_set]
+        max_non_key = 7
+
+        lines = [f"\u274c Missing markets ({len(dropped)} dropped):"]
+        for d in key_dropped:
+            lines.append(f"  \u2022 {d.market_type_name} {EMOJI_WARNING} KEY")
+        for d in non_key_dropped[:max_non_key]:
+            lines.append(f"  \u2022 {d.market_type_name}")
+        remaining = len(non_key_dropped) - max_non_key
+        if remaining > 0:
+            lines.append(f"  ... and {remaining} more")
+
+        return "\n".join(lines)
+
+    def format_odds_shifts(
+        self,
+        shifts: list,
+        threshold: float = 5.0,
+    ) -> str:
+        """Format per-selection odds shifts grouped by market."""
+        from collections import defaultdict
+
+        significant = [s for s in shifts if abs(s.shift_pct) >= threshold]
+        if not significant:
+            return f"{EMOJI_CHART} Odds shifts (prematch \u2192 live):\n  No significant odds shifts."
+
+        by_market: dict[str, list] = defaultdict(list)
+        for s in significant:
+            by_market[s.market_type_name].append(s)
+
+        lines = [f"{EMOJI_CHART} Odds shifts (prematch \u2192 live):"]
+        for market_name, sels in by_market.items():
+            lines.append(f"  {market_name}:")
+            for s in sels:
+                sign = "+" if s.live_price >= s.prematch_price else ""
+                pct = s.shift_pct if s.live_price >= s.prematch_price else -s.shift_pct
+                lines.append(
+                    f"    {s.selection_name}  {s.prematch_price:.2f} \u2192 "
+                    f"{s.live_price:.2f} ({sign}{pct:.1f}%)"
+                )
+
+        return "\n".join(lines)
+
+    def format_snapshot_update(
+        self,
+        match_state,
+        phase_label: str,
+        prev_kept: int,
+        curr_kept: int,
+        prev_retention: float,
+        curr_retention: float,
+        recovered: list[str],
+        still_missing: list[str],
+        key_markets: list[str],
+    ) -> str:
+        """Format a follow-up snapshot thread update (LIVE_2, LIVE_5)."""
+        lines: list[str] = []
+        if match_state:
+            lines.append(match_state.display)
+
+        lines.append(
+            f"{EMOJI_CHART} Snapshot {phase_label}: "
+            f"{prev_kept} \u2192 {curr_kept} markets "
+            f"({prev_retention:.0f}% \u2192 {curr_retention:.0f}% retention)"
+        )
+
+        key_set = set(key_markets)
+        if recovered:
+            lines.append(f"{EMOJI_CHECK} Recovered: {', '.join(recovered)}")
+        if still_missing:
+            tagged = []
+            for name in still_missing:
+                tag = f" {EMOJI_WARNING} KEY" if name in key_set else ""
+                tagged.append(f"{name}{tag}")
+            lines.append(f"\u274c Still missing: {', '.join(tagged)}")
+
+        return "\n".join(lines)
+
     def format_market_anomaly_parent(
         self,
         event: TrackedEvent,
         comparison: "MarketComparison",
     ) -> str:
-        """Format a standalone 'market anomaly' parent message for happy-path events."""
+        """Format a standalone 'market anomaly' parent message."""
         provider_str, competition_line, kickoff_str = self._format_event_header(event)
         total_prematch = comparison.markets_dropped + comparison.markets_kept
+
+        significant_shifts = sum(
+            1 for s in comparison.details.odds_shifts if abs(s.shift_pct) >= 5.0
+        )
 
         lines = [
             f"{EMOJI_CHART} MARKET ANOMALY {EMOJI_DASH} {event.home_team} vs {event.away_team}",
@@ -237,14 +330,14 @@ class SlackClient:
             "",
             f"{total_prematch} prematch markets \u2192 {comparison.markets_kept} live "
             f"({comparison.retention_pct:.0f}% retention)",
+            f"\u274c {comparison.markets_dropped} markets dropped, "
+            f"{significant_shifts} selections shifted > 5%",
         ]
         if comparison.dropped_key_markets:
             lines.append(
                 f"{EMOJI_WARNING} Key market dropped: "
                 f"{', '.join(comparison.dropped_key_markets)}"
             )
-        if comparison.max_odds_shift_pct > 0:
-            lines.append(f"Biggest odds shift: {comparison.max_odds_shift_pct:+.1f}%")
         return "\n".join(lines)
 
     async def post_market_recap(self, thread_ts: str, text: str) -> None:
