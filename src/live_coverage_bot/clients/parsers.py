@@ -14,7 +14,7 @@ from live_coverage_bot.clients.models import (
     ProviderType,
     UpcomingEvent,
 )
-from live_coverage_bot.models.markets import Market, MarketRow, Selection
+from live_coverage_bot.models.markets import Market, MarketRow, MatchState, Selection
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,30 @@ def extract_scores(
                 break
 
     return home_score, away_score
+
+
+def parse_match_state(data: dict[str, Any]) -> MatchState | None:
+    """Parse match state (minute, period, score) from event data."""
+    results = data.get("results")
+    if not results:
+        return None
+
+    display = results.get("display") or {}
+    minute = display.get("minute")
+    current_period = display.get("currentPeriod") or {}
+    period = current_period.get("name") if current_period else None
+
+    home_score, away_score = extract_scores(results)
+
+    if minute is None and period is None and home_score is None:
+        return None
+
+    return MatchState(
+        minute=minute,
+        period=period,
+        home_score=home_score,
+        away_score=away_score,
+    )
 
 
 def parse_live_event(event_data: dict[str, Any]) -> LiveEvent | None:

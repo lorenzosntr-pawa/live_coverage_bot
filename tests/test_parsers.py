@@ -10,9 +10,10 @@ from live_coverage_bot.clients.parsers import (
     extract_scores,
     parse_event_markets,
     parse_live_event,
+    parse_match_state,
     parse_upcoming_event,
 )
-from live_coverage_bot.models.markets import Market, MarketRow, Selection
+from live_coverage_bot.models.markets import Market, MarketRow, MatchState, Selection
 
 
 class TestExtractProviderIds:
@@ -476,3 +477,53 @@ class TestParseEventMarkets:
         }
         result = parse_event_markets(data)
         assert result[0].rows[0].handicap == "-1.5"
+
+
+class TestParseMatchState:
+    def test_parses_full_match_state(self):
+        data = {
+            "results": {
+                "display": {
+                    "minute": "33",
+                    "currentPeriod": {"id": "3007", "name": "First Half", "slug": "FIRST_HALF"},
+                },
+                "participantPeriodResults": [
+                    {
+                        "participant": {"id": "1", "type": "HOME"},
+                        "periodResults": [
+                            {"period": {"slug": "FULL_TIME_EXCLUDING_OVERTIME"}, "result": "1", "type": "SCORE"},
+                        ],
+                    },
+                    {
+                        "participant": {"id": "2", "type": "AWAY"},
+                        "periodResults": [
+                            {"period": {"slug": "FULL_TIME_EXCLUDING_OVERTIME"}, "result": "0", "type": "SCORE"},
+                        ],
+                    },
+                ],
+            }
+        }
+        ms = parse_match_state(data)
+        assert ms is not None
+        assert ms.minute == "33"
+        assert ms.period == "First Half"
+        assert ms.home_score == 1
+        assert ms.away_score == 0
+
+    def test_returns_none_for_no_results(self):
+        assert parse_match_state({"results": None}) is None
+
+    def test_returns_none_for_empty_dict(self):
+        assert parse_match_state({}) is None
+
+    def test_partial_match_state(self):
+        data = {
+            "results": {
+                "display": {"minute": "5", "currentPeriod": None},
+                "participantPeriodResults": [],
+            }
+        }
+        ms = parse_match_state(data)
+        assert ms is not None
+        assert ms.minute == "5"
+        assert ms.period is None
