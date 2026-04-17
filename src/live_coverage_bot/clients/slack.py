@@ -15,6 +15,20 @@ logger = logging.getLogger(__name__)
 
 SLACK_API_BASE = "https://slack.com/api"
 
+# Slack message emoji constants
+EMOJI_LATE = "\U0001f7e1"        # 🟡
+EMOJI_LIVE = "\U0001f7e2"        # 🟢
+EMOJI_NEVER_LIVE = "\U0001f534"  # 🔴
+EMOJI_CLIPBOARD = "\U0001f4cb"   # 📋
+EMOJI_CLOCK = "\u23f0"           # ⏰
+EMOJI_PLUG = "\U0001f50c"        # 🔌
+EMOJI_ID = "\U0001f194"          # 🆔
+EMOJI_WARNING = "\u26a0\ufe0f"   # ⚠️
+EMOJI_CHECK = "\u2705"           # ✅
+EMOJI_STOP = "\U0001f6d1"        # 🛑
+EMOJI_CHART = "\U0001f4ca"       # 📊
+EMOJI_DASH = "\u2014"            # —
+
 
 class SlackError(Exception):
     """Error raised when Slack API operations fail."""
@@ -55,11 +69,11 @@ class SlackClient:
                 now = datetime.now(tz=UTC)
             delay_min = int((now - event.scheduled_kickoff).total_seconds() / 60)
             return (
-                f"\U0001f7e1 LATE \u2014 {event.home_team} vs {event.away_team}\n"
-                f"\U0001f4cb {competition_line}\n"
-                f"\u23f0 Kickoff: {kickoff_str} | Now: {delay_min}min late\n"
-                f"\U0001f50c {provider_str}\n"
-                f"\U0001f194 BetPawa ID: {event.betpawa_event_id}"
+                f"{EMOJI_LATE} LATE {EMOJI_DASH} {event.home_team} vs {event.away_team}\n"
+                f"{EMOJI_CLIPBOARD} {competition_line}\n"
+                f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | Now: {delay_min}min late\n"
+                f"{EMOJI_PLUG} {provider_str}\n"
+                f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}"
             )
 
         if event.status == EventStatus.LIVE:
@@ -71,21 +85,21 @@ class SlackClient:
                 delay_min = event.transition_delay_sec // 60
                 delay_str = f"+{delay_min}min"
             return (
-                f"\U0001f7e2 WENT LIVE \u2014 {event.home_team} vs {event.away_team}\n"
-                f"\U0001f4cb {competition_line}\n"
-                f"\u23f0 Kickoff: {kickoff_str} | Live at: {live_str} ({delay_str})\n"
-                f"\U0001f50c {provider_str}\n"
-                f"\U0001f194 BetPawa ID: {event.betpawa_event_id}"
+                f"{EMOJI_LIVE} WENT LIVE {EMOJI_DASH} {event.home_team} vs {event.away_team}\n"
+                f"{EMOJI_CLIPBOARD} {competition_line}\n"
+                f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | Live at: {live_str} ({delay_str})\n"
+                f"{EMOJI_PLUG} {provider_str}\n"
+                f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}"
             )
 
         if event.status == EventStatus.NEVER_LIVE:
             return (
-                f"\U0001f534 NEVER LIVE \u2014 {event.home_team} vs {event.away_team}\n"
-                f"\U0001f4cb {competition_line}\n"
-                f"\u23f0 Kickoff: {kickoff_str} | Timed out after "
+                f"{EMOJI_NEVER_LIVE} NEVER LIVE {EMOJI_DASH} {event.home_team} vs {event.away_team}\n"
+                f"{EMOJI_CLIPBOARD} {competition_line}\n"
+                f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | Timed out after "
                 f"{int((datetime.now(tz=UTC) - event.scheduled_kickoff).total_seconds() / 60)}min\n"
-                f"\U0001f50c {provider_str}\n"
-                f"\U0001f194 BetPawa ID: {event.betpawa_event_id}"
+                f"{EMOJI_PLUG} {provider_str}\n"
+                f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}"
             )
 
         return f"{event.home_team} vs {event.away_team} [{event.status}] | BetPawa ID: {event.betpawa_event_id}"
@@ -99,16 +113,16 @@ class SlackClient:
     ) -> str:
         """Format a thread reply for a state change."""
         time_str = changed_at.strftime("%H:%M")
-        detail_str = f" \u2014 {details}" if details else ""
+        detail_str = f" {EMOJI_DASH} {details}" if details else ""
 
         if new_status == EventStatus.LATE:
-            return f"{time_str} \u2014 \u26a0\ufe0f Not live yet{detail_str}"
+            return f"{time_str} {EMOJI_DASH} {EMOJI_WARNING} Not live yet{detail_str}"
         if new_status == EventStatus.LIVE:
-            return f"{time_str} \u2014 \u2705 Went live{detail_str}"
+            return f"{time_str} {EMOJI_DASH} {EMOJI_CHECK} Went live{detail_str}"
         if new_status == EventStatus.NEVER_LIVE:
-            return f"{time_str} \u2014 \U0001f6d1 Never went live{detail_str}"
+            return f"{time_str} {EMOJI_DASH} {EMOJI_STOP} Never went live{detail_str}"
 
-        return f"{time_str} \u2014 {old_status} \u2192 {new_status}{detail_str}"
+        return f"{time_str} {EMOJI_DASH} {old_status} \u2192 {new_status}{detail_str}"
 
     async def post_alert(self, event: TrackedEvent, now: datetime) -> str:
         """Post a new alert message. Returns the message ts."""
@@ -174,7 +188,7 @@ class SlackClient:
         total_prematch = comparison.markets_dropped + comparison.markets_kept
 
         lines: list[str] = [
-            f"{time_str} \u2014 \U0001f4ca Market comparison (prematch {comparison.prematch_phase} \u2192 live)",
+            f"{time_str} {EMOJI_DASH} {EMOJI_CHART} Market comparison (prematch {comparison.prematch_phase} \u2192 live)",
             f" \u2022 {total_prematch} prematch markets \u2192 {comparison.markets_kept} live "
             f"({comparison.retention_pct:.0f}% retention)",
         ]
@@ -189,7 +203,7 @@ class SlackClient:
 
         if comparison.dropped_key_markets:
             lines.append(
-                f" \u2022 \u26a0\ufe0f Key market(s) dropped: "
+                f" \u2022 {EMOJI_WARNING} Key market(s) dropped: "
                 f"{', '.join(comparison.dropped_key_markets)}"
             )
 
@@ -215,18 +229,18 @@ class SlackClient:
         total_prematch = comparison.markets_dropped + comparison.markets_kept
 
         lines = [
-            f"\U0001f4ca MARKET ANOMALY \u2014 {event.home_team} vs {event.away_team}",
-            f"\U0001f4cb {competition_line}",
-            f"\u23f0 Kickoff: {kickoff_str} | Went live on time",
-            f"\U0001f50c {provider_str}",
-            f"\U0001f194 BetPawa ID: {event.betpawa_event_id}",
+            f"{EMOJI_CHART} MARKET ANOMALY {EMOJI_DASH} {event.home_team} vs {event.away_team}",
+            f"{EMOJI_CLIPBOARD} {competition_line}",
+            f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | Went live on time",
+            f"{EMOJI_PLUG} {provider_str}",
+            f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}",
             "",
             f"{total_prematch} prematch markets \u2192 {comparison.markets_kept} live "
             f"({comparison.retention_pct:.0f}% retention)",
         ]
         if comparison.dropped_key_markets:
             lines.append(
-                f"\u26a0\ufe0f Key market dropped: "
+                f"{EMOJI_WARNING} Key market dropped: "
                 f"{', '.join(comparison.dropped_key_markets)}"
             )
         if comparison.max_odds_shift_pct > 0:

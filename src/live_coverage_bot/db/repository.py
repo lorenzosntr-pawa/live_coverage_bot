@@ -6,6 +6,11 @@ from live_coverage_bot.db.connection import Database
 from live_coverage_bot.models.events import EventStatus, StateChange, TrackedEvent
 
 
+def _parse_dt(value: str | None) -> datetime | None:
+    """Parse an ISO datetime string, returning None if the value is None."""
+    return datetime.fromisoformat(value) if value else None
+
+
 class EventRepository:
     """Repository for tracked event persistence."""
 
@@ -178,21 +183,9 @@ class EventRepository:
             status=EventStatus(row["status"]),
             provider_ids=TrackedEvent.provider_ids_from_json(row["provider_ids"]),
             first_seen_prematch=datetime.fromisoformat(row["first_seen_prematch"]),
-            first_seen_live=(
-                datetime.fromisoformat(row["first_seen_live"])
-                if row["first_seen_live"]
-                else None
-            ),
+            first_seen_live=_parse_dt(row["first_seen_live"]),
             transition_delay_sec=row["transition_delay_sec"],
             slack_message_ts=row["slack_message_ts"],
-            created_at=(
-                datetime.fromisoformat(row["created_at"])
-                if row["created_at"]
-                else None
-            ),
-            updated_at=(
-                datetime.fromisoformat(row["updated_at"])
-                if row["updated_at"]
-                else None
-            ),
+            created_at=_parse_dt(row["created_at"]),
+            updated_at=_parse_dt(row["updated_at"]),
         )
