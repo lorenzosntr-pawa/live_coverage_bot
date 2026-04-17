@@ -133,10 +133,39 @@ class MonitoringLoop:
         for t in transitions:
             await self._handle_transition(slack, t, now)
 
+        # Market snapshots (prematch windows + live on transition)
+        snapshotter = MarketSnapshotter(
+            self._repo, self._market_repo, betpawa, self._settings.markets
+        )
+
         if current_prematch_ids is not None:
             removed = await self._tracker.detect_removed(current_prematch_ids, now=now)
             if removed:
                 logger.info("Detected %d removed prematch events", len(removed))
+
+            for r in removed:
+                if r.event.id is None:
+                    continue
+                taken_phases = await self._market_repo.phases_taken_for_event(r.event.id)
+                if any(p.is_prematch for p in taken_phases):
+                    # Use existing prematch snapshot market count
+                    latest_pre = await self._market_repo.get_latest_prematch_snapshot(r.event.id)
+                    if latest_pre:
+                        await self._repo.update_removed_fields(
+                            r.event.id, removed_at=now, market_count=latest_pre.total_market_count
+                        )
+                else:
+                    # Take PRE_REMOVAL snapshot
+                    result = await snapshotter._take_snapshot(r.event, SnapshotPhase.PRE_REMOVAL, now)
+                    if result:
+                        snaps = await self._market_repo.get_snapshots_for_event(r.event.id)
+                        pre_removal = next(
+                            (s for s in snaps if s.phase == SnapshotPhase.PRE_REMOVAL), None
+                        )
+                        if pre_removal:
+                            await self._repo.update_removed_fields(
+                                r.event.id, removed_at=now, market_count=pre_removal.total_market_count
+                            )
 
             # Check if any REMOVED events reappeared in prematch
             prematch_recoveries = await self._tracker.detect_prematch_recovery(
@@ -144,11 +173,6 @@ class MonitoringLoop:
             )
             for recovery in prematch_recoveries:
                 await self._handle_transition(slack, recovery, now)
-
-        # Market snapshots (prematch windows + live on transition)
-        snapshotter = MarketSnapshotter(
-            self._repo, self._market_repo, betpawa, self._settings.markets
-        )
         taken = await snapshotter.run_cycle(
             now=now,
             live_transition_event_ids=live_transition_bp_ids,
