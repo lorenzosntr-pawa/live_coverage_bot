@@ -60,7 +60,7 @@ An event never appeared in the live feed after **90 minutes** past kickoff.
 
 ### 3. Removed event
 
-An event disappeared from the prematch feed **more than 30 minutes** before kickoff. This is unusual — events normally stay in prematch until they go live.
+An event disappeared from the prematch feed **more than 3 minutes** before kickoff. Since BetPawa transitions events from prematch to live ~1 minute before kickoff, anything disappearing earlier than that is unusual.
 
 ```
 🗑️ REMOVED — Arsenal vs Chelsea
@@ -202,7 +202,7 @@ Every **Tuesday at 08:00 UTC**, the bot posts a summary of the previous week (Tu
 
 ## Key things to know
 
-- **Events within 30 minutes of kickoff** that disappear from prematch are NOT flagged as removed — this is normal BetPawa behavior during the transition window
+- **Events within 3 minutes of kickoff** that disappear from prematch are NOT flagged as removed — BetPawa transitions events ~1 minute before kickoff, so a small buffer is normal
 - **The 5-minute snapshot** is the most reliable for market retention — the initial snapshot often shows fewer markets because they're still loading
 - **Odds shifts during live play are normal** — if the match state shows a goal just happened, markets will temporarily suspend and odds will shift when they reopen
 - **Provider IDs** (SPORTRADAR #xxx, GENIUSSPORTS #xxx) help cross-reference with the provider dashboards

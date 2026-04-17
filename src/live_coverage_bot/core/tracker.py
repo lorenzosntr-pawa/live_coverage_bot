@@ -121,13 +121,13 @@ class EventLifecycleTracker:
         self,
         current_prematch_ids: set[str],
         now: datetime,
-        kickoff_buffer_minutes: int = 30,
+        kickoff_buffer_minutes: int = 3,
     ) -> list[RemovedResult]:
         """Detect PREMATCH events that disappeared from the feed before kickoff.
 
         Events close to kickoff are NOT marked as REMOVED even if they vanish
-        from the prematch feed, because BetPawa commonly drops events from
-        prematch before they appear in the live feed (data propagation gap).
+        from the prematch feed, because BetPawa transitions events from
+        prematch to live ~1 minute before kickoff.
         Within `kickoff_buffer_minutes` of kickoff, we wait for the event to
         appear in live; post-kickoff, check_transitions/hard_timeout handles it.
         """
