@@ -273,7 +273,6 @@ class SlackClient:
         key_set = set(key_market_names)
         key_dropped = [d for d in dropped if d.market_type_name in key_set]
         non_key_dropped = [d for d in dropped if d.market_type_name not in key_set]
-        max_non_key = 7
 
         lines = [f"\u274c *Missing markets ({len(dropped)} dropped):*"]
         if key_dropped:
@@ -281,11 +280,8 @@ class SlackClient:
                 lines.append(f"  {EMOJI_WARNING} {d.market_type_name}  `KEY`")
             if non_key_dropped:
                 lines.append("")  # visual separator
-        for d in non_key_dropped[:max_non_key]:
+        for d in non_key_dropped:
             lines.append(f"  \u2022 {d.market_type_name}")
-        remaining = len(non_key_dropped) - max_non_key
-        if remaining > 0:
-            lines.append(f"  _... and {remaining} more_")
 
         return "\n".join(lines)
 

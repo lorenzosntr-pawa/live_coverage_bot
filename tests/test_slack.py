@@ -267,7 +267,7 @@ class TestDetailedMarketThread:
         assert "KEY" in text
         assert "Correct Score - FT" in text
 
-    def test_format_missing_markets_truncation(self, slack_config):
+    def test_format_missing_markets_shows_all(self, slack_config):
         from live_coverage_bot.models.markets import DroppedMarketDetail
 
         client = SlackClient(slack_config)
@@ -277,7 +277,8 @@ class TestDetailedMarketThread:
         ]
         text = client.format_missing_markets(dropped, ["Market 0"])
         assert "KEY" in text
-        assert "more" in text
+        assert "Market 11" in text
+        assert "more" not in text
 
     def test_format_odds_shifts(self, slack_config):
         from live_coverage_bot.models.markets import OddsShiftDetail
