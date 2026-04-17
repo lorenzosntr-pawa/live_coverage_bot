@@ -275,14 +275,17 @@ class SlackClient:
         non_key_dropped = [d for d in dropped if d.market_type_name not in key_set]
         max_non_key = 7
 
-        lines = [f"\u274c Missing markets ({len(dropped)} dropped):"]
-        for d in key_dropped:
-            lines.append(f"  \u2022 {d.market_type_name} {EMOJI_WARNING} KEY")
+        lines = [f"\u274c *Missing markets ({len(dropped)} dropped):*"]
+        if key_dropped:
+            for d in key_dropped:
+                lines.append(f"  {EMOJI_WARNING} {d.market_type_name}  `KEY`")
+            if non_key_dropped:
+                lines.append("")  # visual separator
         for d in non_key_dropped[:max_non_key]:
             lines.append(f"  \u2022 {d.market_type_name}")
         remaining = len(non_key_dropped) - max_non_key
         if remaining > 0:
-            lines.append(f"  ... and {remaining} more")
+            lines.append(f"  _... and {remaining} more_")
 
         return "\n".join(lines)
 
@@ -291,26 +294,39 @@ class SlackClient:
         shifts: list,
         threshold: float = 5.0,
     ) -> str:
-        """Format per-selection odds shifts grouped by market."""
+        """Format per-selection odds shifts grouped by market, sorted by magnitude."""
         from collections import defaultdict
 
         significant = [s for s in shifts if abs(s.shift_pct) >= threshold]
         if not significant:
-            return f"{EMOJI_CHART} Odds shifts (prematch \u2192 live):\n  No significant odds shifts."
+            return f"{EMOJI_CHART} *Odds shifts (prematch \u2192 live):*\n  _No significant odds shifts._"
+
+        # Sort by absolute shift descending so biggest moves are first
+        significant.sort(key=lambda s: abs(s.shift_pct), reverse=True)
 
         by_market: dict[str, list] = defaultdict(list)
         for s in significant:
             by_market[s.market_type_name].append(s)
 
-        lines = [f"{EMOJI_CHART} Odds shifts (prematch \u2192 live):"]
-        for market_name, sels in by_market.items():
-            lines.append(f"  {market_name}:")
+        # Sort markets by their max shift descending
+        sorted_markets = sorted(
+            by_market.items(),
+            key=lambda item: max(abs(s.shift_pct) for s in item[1]),
+            reverse=True,
+        )
+
+        lines = [f"{EMOJI_CHART} *Odds shifts (prematch \u2192 live):*"]
+        for market_name, sels in sorted_markets:
+            lines.append(f"\n  *{market_name}:*")
             for s in sels:
                 sign = "+" if s.live_price >= s.prematch_price else ""
                 pct = s.shift_pct if s.live_price >= s.prematch_price else -s.shift_pct
+                # Include handicap if present (e.g., Over/Under lines)
+                handicap_label = f" ({s.handicap})" if s.handicap else ""
                 lines.append(
-                    f"    {s.selection_name}  {s.prematch_price:.2f} \u2192 "
-                    f"{s.live_price:.2f} ({sign}{pct:.1f}%)"
+                    f"    {s.selection_name}{handicap_label}  "
+                    f"`{s.prematch_price:.2f}` \u2192 `{s.live_price:.2f}`  "
+                    f"*{sign}{pct:.1f}%*"
                 )
 
         return "\n".join(lines)
