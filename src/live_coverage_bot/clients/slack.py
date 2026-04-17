@@ -31,18 +31,24 @@ class SlackClient:
             headers={"Authorization": f"Bearer {config.bot_token}"},
         )
 
-    def format_parent_message(
-        self, event: TrackedEvent, now: datetime | None = None
-    ) -> str:
-        """Format the parent Slack message based on current event status."""
+    def _format_event_header(
+        self, event: TrackedEvent
+    ) -> tuple[str, str, str]:
+        """Extract common header fields: (provider_str, competition_line, kickoff_str)."""
         provider_str = ", ".join(
             f"{p.type} #{p.id}" for p in event.provider_ids
         )
         competition_line = event.competition
         if event.country:
             competition_line += f" | {event.country}"
-
         kickoff_str = event.scheduled_kickoff.strftime("%H:%M UTC")
+        return provider_str, competition_line, kickoff_str
+
+    def format_parent_message(
+        self, event: TrackedEvent, now: datetime | None = None
+    ) -> str:
+        """Format the parent Slack message based on current event status."""
+        provider_str, competition_line, kickoff_str = self._format_event_header(event)
 
         if event.status == EventStatus.LATE:
             if now is None:
@@ -205,11 +211,7 @@ class SlackClient:
         comparison: "MarketComparison",
     ) -> str:
         """Format a standalone 'market anomaly' parent message for happy-path events."""
-        provider_str = ", ".join(f"{p.type} #{p.id}" for p in event.provider_ids)
-        competition_line = event.competition
-        if event.country:
-            competition_line += f" | {event.country}"
-        kickoff_str = event.scheduled_kickoff.strftime("%H:%M UTC")
+        provider_str, competition_line, kickoff_str = self._format_event_header(event)
         total_prematch = comparison.markets_dropped + comparison.markets_kept
 
         lines = [

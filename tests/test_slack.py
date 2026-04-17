@@ -216,3 +216,18 @@ class TestSlackMarketMessages:
         with patch.object(client._client, "post", return_value=mock_response):
             ts = await client.post_market_anomaly_alert(sample_event, "parent text")
             assert ts == "9999.0000"
+
+
+class TestEventHeaderHelper:
+    def test_format_event_header(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        provider_str, competition_line, kickoff_str = client._format_event_header(sample_event)
+        assert "SPORTRADAR #12345" in provider_str
+        assert "England Premier League | England" == competition_line
+        assert "15:00 UTC" == kickoff_str
+
+    def test_format_event_header_no_country(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        sample_event.country = None
+        provider_str, competition_line, kickoff_str = client._format_event_header(sample_event)
+        assert competition_line == "England Premier League"
