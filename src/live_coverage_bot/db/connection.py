@@ -73,6 +73,18 @@ CREATE INDEX IF NOT EXISTS idx_comparisons_compared_at ON market_comparisons(com
 CREATE INDEX IF NOT EXISTS idx_comparisons_alert ON market_comparisons(triggered_alert);
 """
 
+MIGRATIONS_SQL = """
+-- Feature 1: Enhanced REMOVED tracking
+ALTER TABLE events ADD COLUMN removed_at TEXT;
+ALTER TABLE events ADD COLUMN pre_removal_market_count INTEGER;
+
+-- Feature 2: Match state on snapshots
+ALTER TABLE market_snapshots ADD COLUMN match_state_json TEXT;
+
+-- Feature 3: Snapshot phase on comparisons
+ALTER TABLE market_comparisons ADD COLUMN snapshot_phase TEXT;
+"""
+
 
 class Database:
     """Async SQLite database manager."""
@@ -88,6 +100,16 @@ class Database:
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA foreign_keys=ON")
         await self._conn.executescript(SCHEMA_SQL)
+        await self._conn.commit()
+        # Run additive migrations — ALTER TABLE fails gracefully if column exists
+        for statement in MIGRATIONS_SQL.strip().split(";"):
+            stmt = statement.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            try:
+                await self._conn.execute(stmt)
+            except Exception:
+                pass  # Column already exists
         await self._conn.commit()
         logger.info("Database initialized at %s", self._path)
 
