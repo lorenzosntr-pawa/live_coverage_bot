@@ -22,6 +22,13 @@ PREMATCH_PHASES_CLOSEST_FIRST = (
     SnapshotPhase.PREMATCH_60,
 )
 
+LIVE_PHASE_PREFERENCE = (
+    SnapshotPhase.LIVE_5,
+    SnapshotPhase.LIVE_2,
+    SnapshotPhase.LIVE_0,
+    SnapshotPhase.LIVE,  # Legacy
+)
+
 
 class MarketRepository:
     """Persistence for market snapshots and comparisons."""
@@ -123,6 +130,18 @@ class MarketRepository:
         if row is None:
             return None
         return self._row_to_comparison(row)
+
+    async def get_best_comparison_for_event(self, event_id: int) -> "MarketComparison | None":
+        """Return the best (latest live phase) comparison for weekly reporting."""
+        for phase in LIVE_PHASE_PREFERENCE:
+            row = await self._db.fetch_one(
+                "SELECT * FROM market_comparisons WHERE event_id = ? AND snapshot_phase = ?",
+                (event_id, phase.value),
+            )
+            if row is not None:
+                return self._row_to_comparison(row)
+        # Fallback: any comparison for this event (backward compat)
+        return await self.get_comparison_for_event(event_id)
 
     async def get_comparisons_in_date_range(
         self, start: datetime, end: datetime

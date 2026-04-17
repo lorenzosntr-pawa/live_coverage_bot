@@ -8,6 +8,7 @@ from datetime import datetime
 
 from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
+from live_coverage_bot.models.markets import MarketComparison
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,18 @@ class MarketReporter:
         self, start: datetime, end: datetime
     ) -> str:
         """Return the markets section for the weekly Slack summary."""
-        comparisons = await self._markets.get_comparisons_in_date_range(start, end)
+        all_comparisons = await self._markets.get_comparisons_in_date_range(start, end)
+        # Deduplicate: one comparison per event, prefer LIVE_5 > LIVE_2 > LIVE_0
+        seen_events: set[int] = set()
+        comparisons: list[MarketComparison] = []
+        for cmp in all_comparisons:
+            if cmp.event_id in seen_events:
+                continue
+            best = await self._markets.get_best_comparison_for_event(cmp.event_id)
+            if best:
+                comparisons.append(best)
+                seen_events.add(cmp.event_id)
+
         total = len(comparisons)
 
         if total == 0:
