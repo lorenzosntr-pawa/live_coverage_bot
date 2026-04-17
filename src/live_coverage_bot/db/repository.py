@@ -23,8 +23,9 @@ class EventRepository:
             """INSERT INTO events
             (betpawa_event_id, home_team, away_team, competition, country,
              scheduled_kickoff, status, provider_ids, first_seen_prematch,
-             first_seen_live, transition_delay_sec, slack_message_ts)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             first_seen_live, transition_delay_sec, slack_message_ts,
+             removed_at, pre_removal_market_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.betpawa_event_id,
                 event.home_team,
@@ -38,6 +39,8 @@ class EventRepository:
                 event.first_seen_live.isoformat() if event.first_seen_live else None,
                 event.transition_delay_sec,
                 event.slack_message_ts,
+                event.removed_at.isoformat() if event.removed_at else None,
+                event.pre_removal_market_count,
             ),
         )
         return cursor.lastrowid
@@ -103,6 +106,15 @@ class EventRepository:
                 first_seen_live.isoformat(),
                 event_id,
             ),
+        )
+
+    async def update_removed_fields(
+        self, event_id: int, removed_at: datetime, market_count: int | None = None
+    ) -> None:
+        """Update removal-specific fields."""
+        await self._db.execute(
+            "UPDATE events SET removed_at = ?, pre_removal_market_count = ?, updated_at = ? WHERE id = ?",
+            (removed_at.isoformat(), market_count, removed_at.isoformat(), event_id),
         )
 
     async def update_slack_ts(self, event_id: int, slack_ts: str) -> None:
@@ -186,6 +198,8 @@ class EventRepository:
             first_seen_live=_parse_dt(row["first_seen_live"]),
             transition_delay_sec=row["transition_delay_sec"],
             slack_message_ts=row["slack_message_ts"],
+            removed_at=_parse_dt(row.get("removed_at")),
+            pre_removal_market_count=row.get("pre_removal_market_count"),
             created_at=_parse_dt(row["created_at"]),
             updated_at=_parse_dt(row["updated_at"]),
         )

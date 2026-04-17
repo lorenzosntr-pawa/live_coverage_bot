@@ -103,8 +103,10 @@ class Database:
         await self._conn.commit()
         # Run additive migrations — ALTER TABLE fails gracefully if column exists
         for statement in MIGRATIONS_SQL.strip().split(";"):
-            stmt = statement.strip()
-            if not stmt or stmt.startswith("--"):
+            # Strip comment lines and surrounding whitespace
+            lines = [ln for ln in statement.splitlines() if not ln.strip().startswith("--")]
+            stmt = "\n".join(lines).strip()
+            if not stmt:
                 continue
             try:
                 await self._conn.execute(stmt)
