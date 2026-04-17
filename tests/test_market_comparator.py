@@ -8,9 +8,12 @@ from live_coverage_bot.config.models import (
 )
 from live_coverage_bot.core.market_comparator import compare_snapshots
 from live_coverage_bot.models.markets import (
+    ComparisonDetails,
+    DroppedMarketDetail,
     Market,
     MarketRow,
     MarketSnapshot,
+    OddsShiftDetail,
     Selection,
     SnapshotPhase,
 )
@@ -161,3 +164,27 @@ class TestCompareSnapshots:
 
         cmp = compare_snapshots(pre, live, cfg, now=datetime(2026, 4, 15, 15, 1, tzinfo=UTC))
         assert cmp.max_odds_shift_pct == 0
+
+
+class TestTypedDetails:
+    def test_details_has_typed_dropped(self):
+        pre = _snap(1, SnapshotPhase.PREMATCH_1, [_market_1x2(), _market_btts()])
+        live = _snap(1, SnapshotPhase.LIVE, [_market_1x2()])
+        cfg = _default_config()
+        cmp = compare_snapshots(pre, live, cfg, now=datetime(2026, 4, 15, 15, 1, tzinfo=UTC))
+        assert isinstance(cmp.details, ComparisonDetails)
+        assert len(cmp.details.dropped) == 1
+        assert isinstance(cmp.details.dropped[0], DroppedMarketDetail)
+        assert cmp.details.dropped[0].market_type_name == "Both Teams To Score - FT"
+
+    def test_details_has_typed_odds_shifts(self):
+        pre = _snap(1, SnapshotPhase.PREMATCH_1, [_market_1x2(home_odds=2.0)])
+        live = _snap(1, SnapshotPhase.LIVE, [_market_1x2(home_odds=2.5)])
+        cfg = _default_config()
+        cmp = compare_snapshots(pre, live, cfg, now=datetime(2026, 4, 15, 15, 1, tzinfo=UTC))
+        assert len(cmp.details.odds_shifts) > 0
+        shift = cmp.details.odds_shifts[0]
+        assert isinstance(shift, OddsShiftDetail)
+        assert shift.prematch_price == 2.0
+        assert shift.live_price == 2.5
+        assert shift.shift_pct > 0

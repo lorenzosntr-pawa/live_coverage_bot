@@ -11,6 +11,7 @@ from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
 from live_coverage_bot.models.events import EventStatus, TrackedEvent
 from live_coverage_bot.models.markets import (
+    ComparisonDetails,
     Market,
     MarketComparison,
     MarketRow,
@@ -141,7 +142,7 @@ class TestComparisonOps:
             dropped_key_markets=["Both Teams To Score - FT"],
             max_odds_shift_pct=16.7,
             triggered_alert=True,
-            details={"dropped": ["Corners"], "added": [], "odds_shifts": []},
+            details=ComparisonDetails(dropped=[], added=[], odds_shifts=[]),
         )
         row_id = await market_repo.insert_comparison(cmp)
         assert row_id > 0
@@ -160,7 +161,7 @@ class TestComparisonOps:
             markets_added=0, markets_dropped=10, markets_kept=5,
             retention_pct=33.3, dropped_key_markets=[],
             max_odds_shift_pct=5.0, triggered_alert=False,
-            details={"dropped": [], "added": [], "odds_shifts": []},
+            details=ComparisonDetails(dropped=[], added=[], odds_shifts=[]),
         )
         await market_repo.insert_comparison(cmp)
 

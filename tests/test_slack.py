@@ -118,7 +118,13 @@ class TestSlackApiCalls:
 class TestSlackMarketMessages:
     def test_format_market_recap(self, slack_config, sample_event):
         from live_coverage_bot.clients.slack import SlackClient
-        from live_coverage_bot.models.markets import MarketComparison, SnapshotPhase
+        from live_coverage_bot.models.markets import (
+            ComparisonDetails,
+            DroppedMarketDetail,
+            MarketComparison,
+            OddsShiftDetail,
+            SnapshotPhase,
+        )
 
         client = SlackClient(slack_config)
         now = datetime(2026, 4, 15, 15, 12, tzinfo=UTC)
@@ -133,14 +139,24 @@ class TestSlackMarketMessages:
             dropped_key_markets=["Both Teams To Score - FT"],
             max_odds_shift_pct=16.7,
             triggered_alert=True,
-            details={
-                "dropped": ["Corner markets", "Player specials"],
-                "added": [],
-                "odds_shifts": [
-                    {"market": "1X2 - FT", "selection": "1", "handicap": None,
-                     "prematch_price": 2.10, "live_price": 2.45, "shift_pct": 16.7},
+            details=ComparisonDetails(
+                dropped=[
+                    DroppedMarketDetail(market_type_id="m1", market_type_name="Corner markets"),
+                    DroppedMarketDetail(market_type_id="m2", market_type_name="Player specials"),
                 ],
-            },
+                added=[],
+                odds_shifts=[
+                    OddsShiftDetail(
+                        market_type_name="1X2 - FT",
+                        selection_name="1",
+                        selection_type_id="3744",
+                        handicap=None,
+                        prematch_price=2.10,
+                        live_price=2.45,
+                        shift_pct=16.7,
+                    ),
+                ],
+            ),
         )
         text = client.format_market_recap(cmp, now)
         assert "15:12" in text
@@ -153,7 +169,11 @@ class TestSlackMarketMessages:
 
     def test_format_market_anomaly_parent(self, slack_config, sample_event):
         from live_coverage_bot.clients.slack import SlackClient
-        from live_coverage_bot.models.markets import MarketComparison, SnapshotPhase
+        from live_coverage_bot.models.markets import (
+            ComparisonDetails,
+            MarketComparison,
+            SnapshotPhase,
+        )
 
         client = SlackClient(slack_config)
         cmp = MarketComparison(
@@ -164,7 +184,7 @@ class TestSlackMarketMessages:
             retention_pct=28.6,
             dropped_key_markets=["1X2 - FT"],
             max_odds_shift_pct=5.0, triggered_alert=True,
-            details={"dropped": [], "added": [], "odds_shifts": []},
+            details=ComparisonDetails(dropped=[], added=[], odds_shifts=[]),
         )
         text = client.format_market_anomaly_parent(sample_event, cmp)
         assert "MARKET ANOMALY" in text

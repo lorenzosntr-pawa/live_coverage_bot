@@ -52,6 +52,40 @@ class Market(BaseModel):
     rows: list[MarketRow]
 
 
+class DroppedMarketDetail(BaseModel):
+    """A market that was in prematch but not in live."""
+
+    market_type_id: str
+    market_type_name: str
+
+
+class AddedMarketDetail(BaseModel):
+    """A market that appeared in live but not in prematch."""
+
+    market_type_id: str
+    market_type_name: str
+
+
+class OddsShiftDetail(BaseModel):
+    """A per-selection odds shift between prematch and live."""
+
+    market_type_name: str
+    selection_name: str
+    selection_type_id: str
+    handicap: str | None
+    prematch_price: float
+    live_price: float
+    shift_pct: float
+
+
+class ComparisonDetails(BaseModel):
+    """Structured details of a market comparison."""
+
+    dropped: list[DroppedMarketDetail]
+    added: list[AddedMarketDetail]
+    odds_shifts: list[OddsShiftDetail]
+
+
 class MarketSnapshot(BaseModel):
     """A snapshot of all markets for an event at a given phase."""
 
@@ -90,4 +124,4 @@ class MarketComparison(BaseModel):
     dropped_key_markets: list[str]
     max_odds_shift_pct: float
     triggered_alert: bool
-    details: dict
+    details: ComparisonDetails

@@ -4,9 +4,13 @@ from datetime import datetime
 
 from live_coverage_bot.config.models import MarketsConfig
 from live_coverage_bot.models.markets import (
+    AddedMarketDetail,
+    ComparisonDetails,
+    DroppedMarketDetail,
     Market,
     MarketComparison,
     MarketSnapshot,
+    OddsShiftDetail,
 )
 
 
@@ -27,13 +31,27 @@ def compare_snapshots(
     total_prematch = len(pre_by_id)
     retention_pct = (len(kept_ids) / total_prematch * 100) if total_prematch else 0.0
 
-    dropped_names = [pre_by_id[mt_id].market_type_name for mt_id in dropped_ids]
-    added_names = [live_by_id[mt_id].market_type_name for mt_id in added_ids]
+    dropped_details = [
+        DroppedMarketDetail(
+            market_type_id=mt_id,
+            market_type_name=pre_by_id[mt_id].market_type_name,
+        )
+        for mt_id in dropped_ids
+    ]
+    added_details = [
+        AddedMarketDetail(
+            market_type_id=mt_id,
+            market_type_name=live_by_id[mt_id].market_type_name,
+        )
+        for mt_id in added_ids
+    ]
 
     key_markets = set(config.key_markets)
-    dropped_key_markets = [name for name in dropped_names if name in key_markets]
+    dropped_key_markets = [
+        d.market_type_name for d in dropped_details if d.market_type_name in key_markets
+    ]
 
-    odds_shifts: list[dict] = []
+    odds_shifts: list[OddsShiftDetail] = []
     max_shift = 0.0
     for mt_id in kept_ids:
         pre_m = pre_by_id[mt_id]
@@ -53,14 +71,15 @@ def compare_snapshots(
                 shift = abs(live_sel.price - pre_sel.price) / pre_sel.price * 100
                 if shift > max_shift:
                     max_shift = shift
-                odds_shifts.append({
-                    "market": pre_m.market_type_name,
-                    "selection": pre_sel.name,
-                    "handicap": pre_row.handicap,
-                    "prematch_price": pre_sel.price,
-                    "live_price": live_sel.price,
-                    "shift_pct": round(shift, 2),
-                })
+                odds_shifts.append(OddsShiftDetail(
+                    market_type_name=pre_m.market_type_name,
+                    selection_name=pre_sel.name,
+                    selection_type_id=pre_sel.type_id,
+                    handicap=pre_row.handicap,
+                    prematch_price=pre_sel.price,
+                    live_price=live_sel.price,
+                    shift_pct=round(shift, 2),
+                ))
 
     thresholds = config.alert_thresholds
     triggered = (
@@ -80,9 +99,9 @@ def compare_snapshots(
         dropped_key_markets=dropped_key_markets,
         max_odds_shift_pct=round(max_shift, 2),
         triggered_alert=triggered,
-        details={
-            "dropped": dropped_names,
-            "added": added_names,
-            "odds_shifts": odds_shifts,
-        },
+        details=ComparisonDetails(
+            dropped=dropped_details,
+            added=added_details,
+            odds_shifts=odds_shifts,
+        ),
     )

@@ -173,7 +173,7 @@ class SlackClient:
             f"({comparison.retention_pct:.0f}% retention)",
         ]
 
-        dropped_names = comparison.details.get("dropped", [])
+        dropped_names = [d.market_type_name for d in comparison.details.dropped]
         if dropped_names:
             lines.append(f" \u2022 Dropped: {comparison.markets_dropped} markets")
             for name in dropped_names[:5]:
@@ -187,14 +187,14 @@ class SlackClient:
                 f"{', '.join(comparison.dropped_key_markets)}"
             )
 
-        odds_shifts = comparison.details.get("odds_shifts", [])
+        odds_shifts = comparison.details.odds_shifts
         if odds_shifts:
-            biggest = max(odds_shifts, key=lambda s: s.get("shift_pct", 0))
+            biggest = max(odds_shifts, key=lambda s: s.shift_pct)
             lines.append(
-                f" \u2022 Biggest odds shift: {biggest['market']} "
-                f"{biggest['selection']} "
-                f"{biggest['prematch_price']} \u2192 {biggest['live_price']} "
-                f"({biggest['shift_pct']:+.1f}%)"
+                f" \u2022 Biggest odds shift: {biggest.market_type_name} "
+                f"{biggest.selection_name} "
+                f"{biggest.prematch_price} \u2192 {biggest.live_price} "
+                f"({biggest.shift_pct:+.1f}%)"
             )
 
         return "\n".join(lines)

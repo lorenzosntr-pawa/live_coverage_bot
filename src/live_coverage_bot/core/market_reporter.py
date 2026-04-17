@@ -109,8 +109,8 @@ class MarketReporter:
 
         drop_count: Counter[str] = Counter()
         for c in comparisons:
-            for name in c.details.get("dropped", []):
-                drop_count[name] += 1
+            for d in c.details.dropped:
+                drop_count[d.market_type_name] += 1
 
         lines = [
             "\u2500\u2500\u2500 Markets \u2500\u2500\u2500",

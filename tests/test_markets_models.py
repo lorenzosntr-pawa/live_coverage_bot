@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 
 from live_coverage_bot.models.markets import (
+    ComparisonDetails,
+    DroppedMarketDetail,
     Market,
     MarketComparison,
     MarketRow,
@@ -109,7 +111,11 @@ class TestMarketComparison:
             dropped_key_markets=["Both Teams To Score - FT"],
             max_odds_shift_pct=16.7,
             triggered_alert=True,
-            details={"dropped": ["Corner markets"], "added": [], "odds_shifts": []},
+            details=ComparisonDetails(
+                dropped=[DroppedMarketDetail(market_type_id="m1", market_type_name="Corner markets")],
+                added=[],
+                odds_shifts=[],
+            ),
         )
         assert c.retention_pct == 39.1
         assert c.triggered_alert
