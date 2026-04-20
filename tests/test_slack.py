@@ -331,6 +331,37 @@ class TestDetailedMarketThread:
         assert "KEY" in text
 
 
+class TestBotStatusFormatting:
+    def test_format_shutdown_message(self, slack_config):
+        client = SlackClient(slack_config)
+        now = datetime(2026, 4, 20, 14, 32, tzinfo=UTC)
+        msg = client.format_shutdown_message(now)
+        assert "shutting down" in msg.lower()
+        assert "14:32" in msg
+
+    def test_format_crash_message(self, slack_config):
+        client = SlackClient(slack_config)
+        msg = client.format_crash_message("ValueError", "invalid literal")
+        assert "crashed" in msg.lower()
+        assert "ValueError" in msg
+        assert "invalid literal" in msg
+
+    def test_format_recovery_summary(self, slack_config):
+        client = SlackClient(slack_config)
+        downtime_start = datetime(2026, 4, 18, 14, 32, tzinfo=UTC)
+        now = datetime(2026, 4, 20, 9, 15, tzinfo=UTC)
+        msg = client.format_recovery_summary(
+            downtime_start=downtime_start,
+            now=now,
+            unmonitored_count=12,
+            active_remaining=3,
+        )
+        assert "restarting" in msg.lower() or "downtime" in msg.lower()
+        assert "12" in msg
+        assert "3" in msg
+        assert "Apr 18" in msg or "18" in msg
+
+
 class TestEventHeaderHelper:
     def test_format_event_header(self, slack_config, sample_event):
         client = SlackClient(slack_config)

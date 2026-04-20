@@ -28,6 +28,9 @@ EMOJI_CHECK = "\u2705"           # ✅
 EMOJI_STOP = "\U0001f6d1"        # 🛑
 EMOJI_CHART = "\U0001f4ca"       # 📊
 EMOJI_DASH = "\u2014"            # —
+EMOJI_POWER = "\U0001f50b"       # 🔋
+EMOJI_CRASH = "\U0001f4a5"       # 💥
+EMOJI_RESTART = "\U0001f504"     # 🔄
 
 
 class SlackError(Exception):
@@ -422,6 +425,56 @@ class SlackClient:
         if not data.get("ok"):
             raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
         return data["ts"]
+
+    def format_shutdown_message(self, now: datetime) -> str:
+        """Format a graceful shutdown notification."""
+        time_str = now.strftime("%H:%M UTC")
+        return f"{EMOJI_POWER} Bot shutting down (manual stop). Last cycle: {time_str}"
+
+    def format_crash_message(self, error_type: str, error_msg: str) -> str:
+        """Format a crash notification."""
+        return f"{EMOJI_CRASH} Bot crashed: {error_type}: {error_msg}"
+
+    def format_recovery_summary(
+        self,
+        downtime_start: datetime,
+        now: datetime,
+        unmonitored_count: int,
+        active_remaining: int,
+    ) -> str:
+        """Format the startup recovery summary after downtime."""
+        gap_seconds = (now - downtime_start).total_seconds()
+        hours = int(gap_seconds // 3600)
+        minutes = int((gap_seconds % 3600) // 60)
+        if hours > 0:
+            gap_str = f"~{hours}h {minutes}min"
+        else:
+            gap_str = f"~{minutes}min"
+
+        start_str = downtime_start.strftime("%a %b %d %H:%M")
+        now_str = now.strftime("%a %b %d %H:%M")
+
+        lines = [
+            f"{EMOJI_RESTART} Bot restarting after downtime.",
+            f"Offline: {start_str} \u2192 {now_str} UTC ({gap_str})",
+            f"{unmonitored_count} events marked as unmonitored (kickoff occurred during downtime)",
+            f"{active_remaining} active events carried over for normal monitoring",
+        ]
+        return "\n".join(lines)
+
+    async def post_bot_status(self, text: str) -> None:
+        """Post a bot status message to the channel. Best-effort — logs errors."""
+        try:
+            response = await self._client.post(
+                "/chat.postMessage",
+                json={"channel": self._config.channel_id, "text": text},
+            )
+            response.raise_for_status()
+            data = response.json()
+            if not data.get("ok"):
+                logger.warning("Slack bot status post failed: %s", data.get("error"))
+        except Exception as e:
+            logger.warning("Failed to post bot status to Slack: %s", e)
 
     async def close(self) -> None:
         """Close the HTTP client."""
