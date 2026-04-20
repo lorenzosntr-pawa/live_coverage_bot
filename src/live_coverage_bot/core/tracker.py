@@ -213,6 +213,46 @@ class EventLifecycleTracker:
 
         return recoveries
 
+    async def mark_unmonitored(
+        self,
+        downtime_start: datetime,
+        now: datetime,
+    ) -> int:
+        """Mark active events with past kickoff as UNMONITORED after a downtime gap.
+
+        Any active event (PREMATCH or LATE) whose scheduled_kickoff is before
+        `now` gets transitioned to UNMONITORED. Events with future kickoffs
+        are left alone for normal monitoring.
+
+        Returns the count of events marked.
+        """
+        active_events = await self._repo.get_active_events()
+        count = 0
+
+        for event in active_events:
+            assert event.id is not None
+            if event.scheduled_kickoff >= now:
+                continue
+
+            old_status = event.status
+            details = (
+                f"Bot was offline from {downtime_start.strftime('%a %b %d %H:%M')} "
+                f"to {now.strftime('%a %b %d %H:%M')} UTC"
+            )
+            await self._repo.update_status(event.id, EventStatus.UNMONITORED, updated_at=now)
+            await self._repo.insert_state_change(
+                event.id, old_status, EventStatus.UNMONITORED, now,
+                details=details,
+            )
+            logger.info(
+                "Marked as UNMONITORED: %s %s vs %s (kickoff %s)",
+                event.betpawa_event_id, event.home_team, event.away_team,
+                event.scheduled_kickoff.strftime("%Y-%m-%d %H:%M"),
+            )
+            count += 1
+
+        return count
+
     async def _evaluate_transition(
         self,
         event: TrackedEvent,

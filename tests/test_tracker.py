@@ -295,6 +295,138 @@ class TestEnhancedRemoval:
         assert fetched.status == EventStatus.PREMATCH
 
 
+class TestMarkUnmonitored:
+    async def test_marks_past_kickoff_events_as_unmonitored(self, tracker, repo):
+        kickoff_past = datetime(2026, 4, 18, 15, 0, tzinfo=UTC)
+        now_register = datetime(2026, 4, 18, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [
+                {
+                    "betpawa_event_id": "99001",
+                    "home_team": "Arsenal",
+                    "away_team": "Chelsea",
+                    "competition": "EPL",
+                    "country": "England",
+                    "scheduled_kickoff": kickoff_past,
+                    "provider_ids": _make_provider_ids(),
+                }
+            ],
+            now=now_register,
+        )
+
+        downtime_start = datetime(2026, 4, 18, 14, 0, tzinfo=UTC)
+        now_restart = datetime(2026, 4, 20, 9, 0, tzinfo=UTC)
+
+        count = await tracker.mark_unmonitored(
+            downtime_start=downtime_start, now=now_restart
+        )
+        assert count == 1
+
+        event = await repo.get_by_betpawa_id("99001")
+        assert event.status == EventStatus.UNMONITORED
+
+    async def test_leaves_future_kickoff_events_alone(self, tracker, repo):
+        kickoff_future = datetime(2026, 4, 21, 15, 0, tzinfo=UTC)
+        now_register = datetime(2026, 4, 20, 8, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [
+                {
+                    "betpawa_event_id": "99002",
+                    "home_team": "Liverpool",
+                    "away_team": "Man City",
+                    "competition": "EPL",
+                    "country": "England",
+                    "scheduled_kickoff": kickoff_future,
+                    "provider_ids": _make_provider_ids(),
+                }
+            ],
+            now=now_register,
+        )
+
+        downtime_start = datetime(2026, 4, 20, 8, 30, tzinfo=UTC)
+        now_restart = datetime(2026, 4, 20, 9, 0, tzinfo=UTC)
+
+        count = await tracker.mark_unmonitored(
+            downtime_start=downtime_start, now=now_restart
+        )
+        assert count == 0
+
+        event = await repo.get_by_betpawa_id("99002")
+        assert event.status == EventStatus.PREMATCH
+
+    async def test_marks_late_events_as_unmonitored(self, tracker, repo):
+        kickoff = datetime(2026, 4, 18, 15, 0, tzinfo=UTC)
+        now_register = datetime(2026, 4, 18, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [
+                {
+                    "betpawa_event_id": "99003",
+                    "home_team": "Spurs",
+                    "away_team": "West Ham",
+                    "competition": "EPL",
+                    "country": "England",
+                    "scheduled_kickoff": kickoff,
+                    "provider_ids": _make_provider_ids(),
+                }
+            ],
+            now=now_register,
+        )
+        # Transition to LATE before shutdown
+        now_late = kickoff + timedelta(minutes=6)
+        await tracker.check_transitions(set(), now=now_late)
+
+        downtime_start = datetime(2026, 4, 18, 15, 10, tzinfo=UTC)
+        now_restart = datetime(2026, 4, 20, 9, 0, tzinfo=UTC)
+
+        count = await tracker.mark_unmonitored(
+            downtime_start=downtime_start, now=now_restart
+        )
+        assert count == 1
+
+        event = await repo.get_by_betpawa_id("99003")
+        assert event.status == EventStatus.UNMONITORED
+
+    async def test_records_state_change_for_unmonitored(self, tracker, repo):
+        kickoff = datetime(2026, 4, 18, 15, 0, tzinfo=UTC)
+        now_register = datetime(2026, 4, 18, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [
+                {
+                    "betpawa_event_id": "99004",
+                    "home_team": "Brighton",
+                    "away_team": "Everton",
+                    "competition": "EPL",
+                    "country": "England",
+                    "scheduled_kickoff": kickoff,
+                    "provider_ids": _make_provider_ids(),
+                }
+            ],
+            now=now_register,
+        )
+
+        downtime_start = datetime(2026, 4, 18, 14, 0, tzinfo=UTC)
+        now_restart = datetime(2026, 4, 20, 9, 0, tzinfo=UTC)
+
+        await tracker.mark_unmonitored(
+            downtime_start=downtime_start, now=now_restart
+        )
+
+        event = await repo.get_by_betpawa_id("99004")
+        changes = await repo.get_state_changes(event.id)
+        unmonitored_change = [c for c in changes if c.new_status == EventStatus.UNMONITORED]
+        assert len(unmonitored_change) == 1
+        assert "offline" in unmonitored_change[0].details.lower()
+
+    async def test_returns_zero_when_no_stale_events(self, tracker, repo):
+        downtime_start = datetime(2026, 4, 20, 8, 0, tzinfo=UTC)
+        now_restart = datetime(2026, 4, 20, 9, 0, tzinfo=UTC)
+
+        count = await tracker.mark_unmonitored(
+            downtime_start=downtime_start, now=now_restart
+        )
+        assert count == 0
+
+
 class TestTypedReturns:
     async def test_check_transitions_returns_transition_results(self, db):
         from live_coverage_bot.db.repository import EventRepository
