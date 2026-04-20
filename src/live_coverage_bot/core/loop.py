@@ -52,26 +52,78 @@ class MonitoringLoop:
             BetPawaClient(self._settings.betpawa) as betpawa,
             SlackClient(self._settings.slack) as slack,
         ):
+            # Startup: detect downtime and recover
+            now = datetime.now(tz=UTC)
+            await self._startup_recovery(slack, now)
+
             logger.info(
                 "Monitoring loop started (live: %ds, prematch: %ds)",
                 self._settings.polling.live_interval_seconds,
                 self._settings.polling.prematch_interval_seconds,
             )
 
-            while True:
-                try:
-                    now = datetime.now(tz=UTC)
-                    await self._poll_cycle(betpawa, slack, now=now)
-                    await self._check_weekly_report(slack, now)
-                    await self._cleanup_old_events(now)
-                except (BetPawaError, SlackError) as e:
-                    logger.warning("Error in poll cycle: %s", e)
-                except Exception:
-                    logger.exception("Unexpected error in poll cycle")
+            try:
+                while True:
+                    try:
+                        now = datetime.now(tz=UTC)
+                        await self._poll_cycle(betpawa, slack, now=now)
+                        await self._check_weekly_report(slack, now)
+                        await self._cleanup_old_events(now)
+                    except (BetPawaError, SlackError) as e:
+                        logger.warning("Error in poll cycle: %s", e)
+                    except Exception:
+                        logger.exception("Unexpected error in poll cycle")
 
-                await asyncio.sleep(self._settings.polling.live_interval_seconds)
+                    await asyncio.sleep(self._settings.polling.live_interval_seconds)
+            except Exception as e:
+                # Crash notification — unhandled error that broke out of the loop
+                logger.critical("Fatal error in monitoring loop: %s", e)
+                crash_msg = slack.format_crash_message(
+                    type(e).__name__, str(e)
+                )
+                await slack.post_bot_status(crash_msg)
+                raise
 
         await self._db.close()
+
+    async def _startup_recovery(self, slack: SlackClient, now: datetime) -> None:
+        """Detect downtime from heartbeat gap and mark stale events."""
+        assert self._repo is not None
+        assert self._tracker is not None
+
+        last_heartbeat = await self._repo.get_last_heartbeat()
+
+        if last_heartbeat is not None:
+            gap_seconds = (now - last_heartbeat).total_seconds()
+            threshold = self._settings.polling.live_interval_seconds * 2
+
+            if gap_seconds > threshold:
+                logger.warning(
+                    "Downtime detected: last heartbeat %s (%.0fs ago)",
+                    last_heartbeat.strftime("%Y-%m-%d %H:%M UTC"),
+                    gap_seconds,
+                )
+
+                unmonitored_count = await self._tracker.mark_unmonitored(
+                    downtime_start=last_heartbeat, now=now
+                )
+
+                active_remaining = len(await self._repo.get_active_events())
+
+                recovery_msg = slack.format_recovery_summary(
+                    downtime_start=last_heartbeat,
+                    now=now,
+                    unmonitored_count=unmonitored_count,
+                    active_remaining=active_remaining,
+                )
+                await slack.post_bot_status(recovery_msg)
+            else:
+                logger.info("Clean restart (last heartbeat %.0fs ago)", gap_seconds)
+        else:
+            logger.info("First run — no previous heartbeat found")
+
+        # Record session start
+        await self._repo.upsert_heartbeat(now, started_at=now)
 
     async def _poll_cycle(
         self,
@@ -192,6 +244,10 @@ class MonitoringLoop:
             "Cycle: %d live events, %d prematch tracked, %d late | %d transitions",
             len(live_events), prematch_count, late_count, len(transitions),
         )
+
+        # Update heartbeat
+        assert self._repo is not None
+        await self._repo.upsert_heartbeat(now)
 
     async def _handle_transition(
         self, slack: SlackClient, transition: TransitionResult, now: datetime
