@@ -120,7 +120,28 @@ class MonitoringLoop:
             else:
                 logger.info("Clean restart (last heartbeat %.0fs ago)", gap_seconds)
         else:
-            logger.info("First run — no previous heartbeat found")
+            # No heartbeat — either truly first run, or migrating from
+            # pre-heartbeat code. Check for stale active events that prove
+            # a previous session existed.
+            stale_count = await self._tracker.mark_unmonitored(
+                downtime_start=now, now=now
+            )
+            if stale_count > 0:
+                active_remaining = len(await self._repo.get_active_events())
+                logger.warning(
+                    "No heartbeat found but %d stale events detected — "
+                    "marking as UNMONITORED (pre-heartbeat migration)",
+                    stale_count,
+                )
+                recovery_msg = slack.format_recovery_summary(
+                    downtime_start=now,
+                    now=now,
+                    unmonitored_count=stale_count,
+                    active_remaining=active_remaining,
+                )
+                await slack.post_bot_status(recovery_msg)
+            else:
+                logger.info("First run — no previous heartbeat found")
 
         # Record session start
         await self._repo.upsert_heartbeat(now, started_at=now)
