@@ -143,6 +143,19 @@ class MarketSnapshotter:
         started = time.monotonic()
         try:
             markets = await self._betpawa.get_event_markets(event.betpawa_event_id)
+            if not markets:
+                logger.info(
+                    "Empty markets for %s %s — retrying in 3s",
+                    event.betpawa_event_id, phase.value,
+                )
+                await asyncio.sleep(3)
+                markets = await self._betpawa.get_event_markets(event.betpawa_event_id)
+                if not markets:
+                    logger.warning(
+                        "Still empty markets for %s %s after retry — skipping snapshot",
+                        event.betpawa_event_id, phase.value,
+                    )
+                    return None
         except BetPawaError as e:
             logger.warning(
                 "Market snapshot fetch failed for %s %s: %s",
