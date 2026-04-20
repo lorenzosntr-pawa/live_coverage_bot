@@ -7,6 +7,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from live_coverage_bot.clients.slack import SlackClient
 from live_coverage_bot.config import load_config
 from live_coverage_bot.core.loop import MonitoringLoop
 from live_coverage_bot.core.market_reporter import MarketReporter
@@ -60,7 +61,12 @@ def main() -> int:
     try:
         asyncio.run(loop.run())
     except KeyboardInterrupt:
-        logger.info("Shutdown requested, exiting")
+        logger.info("Shutdown requested, posting notification")
+        try:
+            asyncio.run(_post_shutdown_notification(settings))
+        except Exception as e:
+            logger.warning("Failed to send shutdown notification: %s", e)
+        logger.info("Exiting")
 
     return 0
 
@@ -113,6 +119,14 @@ async def _generate_report(settings, logger) -> int:
 
     await db.close()
     return 0
+
+
+async def _post_shutdown_notification(settings) -> None:
+    """Post a shutdown notification to Slack."""
+    async with SlackClient(settings.slack) as slack:
+        now = datetime.now(tz=UTC)
+        msg = slack.format_shutdown_message(now)
+        await slack.post_bot_status(msg)
 
 
 if __name__ == "__main__":
