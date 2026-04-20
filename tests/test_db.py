@@ -187,6 +187,43 @@ class TestBotStateSchema:
         assert "started_at" in col_names
 
 
+class TestHeartbeatOperations:
+    @pytest.fixture
+    def repo(self, db: Database) -> EventRepository:
+        return EventRepository(db)
+
+    async def test_get_last_heartbeat_returns_none_on_first_run(self, repo):
+        result = await repo.get_last_heartbeat()
+        assert result is None
+
+    async def test_upsert_heartbeat_creates_row(self, repo):
+        now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
+        await repo.upsert_heartbeat(now, started_at=now)
+        result = await repo.get_last_heartbeat()
+        assert result == now
+
+    async def test_upsert_heartbeat_updates_existing(self, repo):
+        start = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
+        await repo.upsert_heartbeat(start, started_at=start)
+
+        later = datetime(2026, 4, 20, 10, 1, tzinfo=UTC)
+        await repo.upsert_heartbeat(later)
+
+        result = await repo.get_last_heartbeat()
+        assert result == later
+
+    async def test_upsert_heartbeat_preserves_started_at(self, repo):
+        start = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
+        await repo.upsert_heartbeat(start, started_at=start)
+
+        later = datetime(2026, 4, 20, 10, 1, tzinfo=UTC)
+        await repo.upsert_heartbeat(later)
+
+        row = await repo._db.fetch_one("SELECT started_at FROM bot_state WHERE id = 1")
+        assert row is not None
+        assert datetime.fromisoformat(row["started_at"]) == start
+
+
 class TestMarketSchema:
     async def test_market_tables_exist(self, db):
         tables = await db.fetch_all(

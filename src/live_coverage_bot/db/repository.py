@@ -182,6 +182,38 @@ class EventRepository:
         )
         return cursor.rowcount
 
+    async def get_last_heartbeat(self) -> datetime | None:
+        """Read the last heartbeat timestamp. Returns None on first run."""
+        row = await self._db.fetch_one(
+            "SELECT last_heartbeat FROM bot_state WHERE id = 1"
+        )
+        if row is None:
+            return None
+        return datetime.fromisoformat(row["last_heartbeat"])
+
+    async def upsert_heartbeat(
+        self, now: datetime, started_at: datetime | None = None
+    ) -> None:
+        """Insert or update the heartbeat timestamp.
+
+        On first call after startup, pass started_at to record session start.
+        Subsequent calls within the same session only update last_heartbeat.
+        """
+        if started_at is not None:
+            await self._db.execute(
+                """INSERT INTO bot_state (id, last_heartbeat, started_at)
+                VALUES (1, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    last_heartbeat = excluded.last_heartbeat,
+                    started_at = excluded.started_at""",
+                (now.isoformat(), started_at.isoformat()),
+            )
+        else:
+            await self._db.execute(
+                "UPDATE bot_state SET last_heartbeat = ? WHERE id = 1",
+                (now.isoformat(),),
+            )
+
     def _row_to_event(self, row: dict) -> TrackedEvent:
         """Convert a database row to a TrackedEvent."""
         return TrackedEvent(
