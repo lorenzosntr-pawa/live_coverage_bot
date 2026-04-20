@@ -171,6 +171,22 @@ class TestEventRepository:
         assert gone is None
 
 
+class TestBotStateSchema:
+    async def test_bot_state_table_exists(self, db: Database):
+        tables = await db.fetch_all(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        table_names = [row["name"] for row in tables]
+        assert "bot_state" in table_names
+
+    async def test_bot_state_columns(self, db: Database):
+        columns = await db.fetch_all("PRAGMA table_info(bot_state)")
+        col_names = {row["name"] for row in columns}
+        assert "id" in col_names
+        assert "last_heartbeat" in col_names
+        assert "started_at" in col_names
+
+
 class TestMarketSchema:
     async def test_market_tables_exist(self, db):
         tables = await db.fetch_all(

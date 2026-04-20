@@ -63,6 +63,12 @@ CREATE TABLE IF NOT EXISTS market_comparisons (
     details_json TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS bot_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_heartbeat TEXT NOT NULL,
+    started_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
 CREATE INDEX IF NOT EXISTS idx_events_kickoff ON events(scheduled_kickoff);
 CREATE INDEX IF NOT EXISTS idx_snapshots_event ON market_snapshots(event_id);
