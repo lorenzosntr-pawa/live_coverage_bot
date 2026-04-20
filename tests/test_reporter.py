@@ -63,6 +63,18 @@ async def _insert_events(repo: EventRepository):
             scheduled_kickoff=base, status=EventStatus.REMOVED,
             provider_ids=pids_sr, first_seen_prematch=base,
         ),
+        TrackedEvent(
+            betpawa_event_id="6", home_team="K", away_team="L",
+            competition="EPL", country="England",
+            scheduled_kickoff=base, status=EventStatus.UNMONITORED,
+            provider_ids=pids_sr, first_seen_prematch=base,
+        ),
+        TrackedEvent(
+            betpawa_event_id="7", home_team="M", away_team="N",
+            competition="NPFL", country="Nigeria",
+            scheduled_kickoff=base, status=EventStatus.UNMONITORED,
+            provider_ids=pids_gs, first_seen_prematch=base,
+        ),
     ]
     for e in events:
         await repo.insert_event(e)
@@ -74,7 +86,7 @@ class TestWeeklyReporter:
         start = datetime(2026, 4, 13, tzinfo=UTC)
         end = datetime(2026, 4, 15, tzinfo=UTC)
         summary = await reporter.generate_slack_summary(start, end)
-        assert "Total prematch events tracked: 5" in summary
+        assert "Total prematch events tracked: 7" in summary
         assert "SPORTRADAR" in summary
         assert "GENIUSSPORTS" in summary
 
@@ -85,7 +97,7 @@ class TestWeeklyReporter:
         csv_content = await reporter.generate_csv(start, end)
         reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(reader)
-        assert len(rows) == 5
+        assert len(rows) == 7
         assert "betpawa_event_id" in rows[0]
         assert "status" in rows[0]
 
@@ -100,3 +112,47 @@ class TestWeeklyReporter:
         end = datetime(2026, 4, 15, tzinfo=UTC)
         summary = await reporter.generate_slack_summary(start, end)
         assert "Total prematch events tracked: 0" in summary
+
+
+class TestUnmonitoredInReport:
+    async def test_summary_includes_unmonitored_line(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        assert "Unmonitored" in summary or "unmonitored" in summary
+        assert "2" in summary  # 2 unmonitored events
+
+    async def test_summary_total_includes_unmonitored(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        assert "Total prematch events tracked: 7" in summary
+
+    async def test_unmonitored_excluded_from_problem_events(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        lines = summary.split("\n")
+        npfl_lines = [l for l in lines if "NPFL" in l]
+        for line in npfl_lines:
+            assert "unmonitored" not in line.lower()
+
+    async def test_csv_includes_unmonitored_status(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        csv_content = await reporter.generate_csv(start, end)
+        assert "UNMONITORED" in csv_content
+
+    async def test_unmonitored_excluded_from_provider_stats(self, reporter, repo):
+        await _insert_events(repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        assert "SPORTRADAR" in summary
+        lines = summary.split("\n")
+        sr_line = next(l for l in lines if "SPORTRADAR" in l)
+        assert "3 events" in sr_line

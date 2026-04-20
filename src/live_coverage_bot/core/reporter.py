@@ -70,6 +70,7 @@ class WeeklyReporter:
         late = [e for e in events if e.status == EventStatus.LIVE and (e.transition_delay_sec or 0) >= self._on_time_threshold]
         never_live = [e for e in events if e.status == EventStatus.NEVER_LIVE]
         removed = [e for e in events if e.status == EventStatus.REMOVED]
+        unmonitored = [e for e in events if e.status == EventStatus.UNMONITORED]
 
         def pct(count: int) -> str:
             return f"{count / total * 100:.1f}%" if total > 0 else "0%"
@@ -85,6 +86,10 @@ class WeeklyReporter:
             f"\U0001f534 Never went live: {len(never_live)} ({pct(len(never_live))})",
             f"\U0001f5d1\ufe0f Removed before kickoff: {len(removed)} ({pct(len(removed))})",
         ]
+        if unmonitored:
+            lines.append(
+                f"\u26ab Unmonitored (bot offline): {len(unmonitored)} ({pct(len(unmonitored))})"
+            )
 
         if late:
             delays = [e.transition_delay_sec for e in late if e.transition_delay_sec]
@@ -102,7 +107,8 @@ class WeeklyReporter:
 
         lines.append("")
         lines.append("By provider:")
-        provider_stats = self._compute_provider_stats(events)
+        monitored_events = [e for e in events if e.status != EventStatus.UNMONITORED]
+        provider_stats = self._compute_provider_stats(monitored_events)
         for provider_type, stats in provider_stats.items():
             on_time_pct = f"{stats['on_time'] / stats['total'] * 100:.0f}%" if stats["total"] > 0 else "0%"
             avg_str = f"{stats['avg_delay']:.1f}min" if stats["avg_delay"] > 0 else "n/a"
