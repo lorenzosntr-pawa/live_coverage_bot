@@ -362,6 +362,9 @@ class MonitoringLoop:
         if prematch_snap is None:
             logger.info("No prematch snapshot for event %d — skipping comparison", event_id)
             return
+        if prematch_snap.total_market_count == 0:
+            logger.info("Empty prematch snapshot for event %d — skipping comparison", event_id)
+            return
 
         all_snaps = await self._market_repo.get_snapshots_for_event(event_id)
         live_snap = next((s for s in reversed(all_snaps) if s.phase == phase), None)
