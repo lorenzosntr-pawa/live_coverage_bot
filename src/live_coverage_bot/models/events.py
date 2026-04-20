@@ -18,11 +18,12 @@ class EventStatus(StrEnum):
     LATE = "LATE"
     NEVER_LIVE = "NEVER_LIVE"
     REMOVED = "REMOVED"
+    UNMONITORED = "UNMONITORED"
 
     @property
     def is_terminal(self) -> bool:
         """Whether this status represents a final state (no further transitions)."""
-        return self in (EventStatus.LIVE, EventStatus.NEVER_LIVE)
+        return self in (EventStatus.LIVE, EventStatus.NEVER_LIVE, EventStatus.UNMONITORED)
 
 
 class TrackedEvent(BaseModel):

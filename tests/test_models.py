@@ -21,6 +21,21 @@ class TestEventStatus:
         assert not EventStatus.PREMATCH.is_terminal
         assert not EventStatus.LATE.is_terminal
 
+    def test_unmonitored_is_terminal(self):
+        assert EventStatus.UNMONITORED.is_terminal is True
+
+    def test_unmonitored_value(self):
+        assert EventStatus.UNMONITORED.value == "UNMONITORED"
+
+    def test_existing_terminal_states_unchanged(self):
+        assert EventStatus.LIVE.is_terminal is True
+        assert EventStatus.NEVER_LIVE.is_terminal is True
+
+    def test_non_terminal_states_unchanged(self):
+        assert EventStatus.PREMATCH.is_terminal is False
+        assert EventStatus.LATE.is_terminal is False
+        assert EventStatus.REMOVED.is_terminal is False
+
 
 class TestTrackedEvent:
     def test_create_from_upcoming(self):
