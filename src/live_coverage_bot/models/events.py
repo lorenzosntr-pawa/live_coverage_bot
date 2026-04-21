@@ -34,6 +34,7 @@ class TrackedEvent(BaseModel):
     home_team: str
     away_team: str
     competition: str
+    competition_id: str = ""
     country: str | None = None
     scheduled_kickoff: datetime
     status: EventStatus

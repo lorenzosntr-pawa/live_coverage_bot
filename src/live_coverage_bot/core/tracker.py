@@ -41,6 +41,7 @@ class EventLifecycleTracker:
                 home_team=item["home_team"],
                 away_team=item["away_team"],
                 competition=item["competition"],
+                competition_id=item.get("competition_id", ""),
                 country=item.get("country"),
                 scheduled_kickoff=item["scheduled_kickoff"],
                 status=EventStatus.PREMATCH,

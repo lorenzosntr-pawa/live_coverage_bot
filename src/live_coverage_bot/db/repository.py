@@ -21,16 +21,17 @@ class EventRepository:
         """Insert a new tracked event. Returns the row ID."""
         cursor = await self._db.execute(
             """INSERT INTO events
-            (betpawa_event_id, home_team, away_team, competition, country,
+            (betpawa_event_id, home_team, away_team, competition, competition_id, country,
              scheduled_kickoff, status, provider_ids, first_seen_prematch,
              first_seen_live, transition_delay_sec, slack_message_ts,
              removed_at, pre_removal_market_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.betpawa_event_id,
                 event.home_team,
                 event.away_team,
                 event.competition,
+                event.competition_id,
                 event.country,
                 event.scheduled_kickoff.isoformat(),
                 event.status.value,
@@ -222,6 +223,7 @@ class EventRepository:
             home_team=row["home_team"],
             away_team=row["away_team"],
             competition=row["competition"],
+            competition_id=row.get("competition_id", ""),
             country=row["country"],
             scheduled_kickoff=datetime.fromisoformat(row["scheduled_kickoff"]),
             status=EventStatus(row["status"]),

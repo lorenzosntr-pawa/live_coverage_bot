@@ -89,6 +89,9 @@ ALTER TABLE market_snapshots ADD COLUMN match_state_json TEXT;
 
 -- Feature 3: Snapshot phase on comparisons
 ALTER TABLE market_comparisons ADD COLUMN snapshot_phase TEXT;
+
+-- Feature 4: Competition ID for league filtering
+ALTER TABLE events ADD COLUMN competition_id TEXT DEFAULT '';
 """
 
 

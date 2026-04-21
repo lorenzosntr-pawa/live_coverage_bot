@@ -301,6 +301,7 @@ class BetPawaClient:
                 "home_team": event.home_team,
                 "away_team": event.away_team,
                 "competition": event.competition_name,
+                "competition_id": event.competition_id,
                 "country": event.country_name,
                 "scheduled_kickoff": event.start_time,
                 "provider_ids": event.provider_ids,
