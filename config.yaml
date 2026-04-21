@@ -1,0 +1,63 @@
+# BetPawa Prematch-to-Live Monitor Configuration
+
+polling:
+  live_interval_seconds: 30
+  prematch_interval_seconds: 150  # 2.5 minutes
+  prematch_lookahead_hours: 24
+
+thresholds:
+  grace_period_minutes: 5
+  hard_timeout_minutes: 90
+
+betpawa:
+  base_url: "https://www.betpawa.ng/api/sportsbook/v3"
+  brand: "betpawa-nigeria"
+  language: "en"
+  device_type: "web"
+
+slack:
+  bot_token: "xoxb-10716466596016-10716530715008-q54gXcpfVOjphxqBpxFgw9Wq"  # xoxb-... (REQUIRED)
+  channel_id: "C0AKSN1RWP9"  # C... (REQUIRED)
+  summary_channel_id: ""  # Optional, defaults to channel_id
+
+database:
+  path: "data/events.db"
+  retention_days: 30
+
+reporting:
+  day: "tuesday"
+  time: "08:00"
+  week_starts: "tuesday"
+  output_dir: "reports/"
+
+markets:
+  enabled: true
+  alert_competition_ids:
+    - "11965"   # Premier League (England)
+    - "12145"   # FA Cup (England)
+    - "12097"   # Serie A (Italy)
+    - "12243"   # Coppa Italia (Italy)
+    - "12468"   # Super Cup (Italy)
+    - "11998"   # Coupe de France (France)
+    - "12127"   # Ligue 1 (France)
+    - "11979"   # Copa del Rey (Spain)
+    - "12039"   # LaLiga (Spain)
+    - "12223"   # Super Cup (Spain)
+    - "12110"   # Bundesliga (Germany)
+    - "12389"   # DFB Pokal (Germany)
+    - "12541"   # UEFA Champions League (International)
+    - "12546"   # UEFA Europa League (International)
+    - "12545"   # UEFA Europa Conference League (International)
+    - "258194"  # FIFA World Cup (International)
+  alert_thresholds:
+    retention_below_pct: 60        # alert if less than this % of markets retained
+    any_key_market_dropped: true   # alert if any key market is missing
+    max_odds_shift_pct: 30         # alert if any selection shifts more than this %
+  odds_shift_display_threshold: 15  # show shifts above this % in thread details
+  live_snapshot_offsets_minutes: [0, 2, 5]  # snapshots at 0, 2, and 5 min after going live
+  key_markets:
+    - "1X2 - FT"
+    - "Total Score Over/Under - FT"
+    - "Both Teams To Score - FT"
+    - "Double Chance - FT"
+    - "1X2 - 1H"
