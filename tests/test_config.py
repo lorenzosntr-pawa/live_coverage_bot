@@ -97,6 +97,18 @@ class TestMarketsConfig:
         assert settings.markets.enabled is True
         assert settings.markets.alert_thresholds.retention_below_pct == 50
 
+    def test_alert_competition_ids_defaults_to_empty(self):
+        from live_coverage_bot.config.models import MarketsConfig
+
+        config = MarketsConfig()
+        assert config.alert_competition_ids == []
+
+    def test_alert_competition_ids_accepts_list(self):
+        from live_coverage_bot.config.models import MarketsConfig
+
+        config = MarketsConfig(alert_competition_ids=["11965", "12097"])
+        assert config.alert_competition_ids == ["11965", "12097"]
+
 
 class TestNewMarketConfig:
     def test_default_live_snapshot_offsets(self):

@@ -73,6 +73,7 @@ class MarketsConfig(BaseModel):
     """Market comparison feature configuration."""
 
     enabled: bool = True
+    alert_competition_ids: list[str] = []
     snapshot_windows: MarketSnapshotWindowsConfig = MarketSnapshotWindowsConfig()
     alert_thresholds: MarketAlertThresholdsConfig = MarketAlertThresholdsConfig()
     key_markets: list[str] = [
