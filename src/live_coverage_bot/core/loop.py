@@ -384,6 +384,15 @@ class MonitoringLoop:
         if event is None:
             return
 
+        # Gate: skip Slack alert if competition not in whitelist
+        alert_ids = self._settings.markets.alert_competition_ids
+        if alert_ids and event.competition_id not in alert_ids:
+            logger.debug(
+                "Skipping market alert for %s (%s) — not in alert leagues",
+                event.betpawa_event_id, event.competition,
+            )
+            return
+
         try:
             if phase == SnapshotPhase.LIVE_0:
                 await self._handle_initial_comparison(slack, event, cmp, live_snap, now)
