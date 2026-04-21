@@ -276,7 +276,7 @@ class TestParseUpcomingEvent:
                 {"position": 1, "name": "Liverpool"},
                 {"position": 2, "name": "ManCity"},
             ],
-            "competition": {"name": "Premier League"},
+            "competition": {"id": "11965", "name": "Premier League"},
             "region": {"name": "England"},
             "widgets": [],
         }
@@ -333,6 +333,27 @@ class TestParseUpcomingEvent:
         data = self._make_event_data()
         del data["id"]
         assert parse_upcoming_event(data) is None
+
+    def test_extracts_competition_id(self):
+        data = self._make_event_data()
+        data["competition"] = {"id": "12546", "name": "UEFA Europa League"}
+        event = parse_upcoming_event(data)
+        assert event is not None
+        assert event.competition_id == "12546"
+
+    def test_missing_competition_id_defaults_to_empty(self):
+        data = self._make_event_data()
+        data["competition"] = {"name": "Some League"}
+        event = parse_upcoming_event(data)
+        assert event is not None
+        assert event.competition_id == ""
+
+    def test_null_competition_gives_empty_competition_id(self):
+        data = self._make_event_data()
+        data["competition"] = None
+        event = parse_upcoming_event(data)
+        assert event is not None
+        assert event.competition_id == ""
 
 
 class TestParseEventMarkets:

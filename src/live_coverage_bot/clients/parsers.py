@@ -233,6 +233,7 @@ def parse_upcoming_event(event_data: dict[str, Any]) -> UpcomingEvent | None:
     # Get competition and region
     competition = event_data.get("competition") or {}
     competition_name = competition.get("name", "")
+    competition_id = str(competition.get("id", ""))
     region = event_data.get("region") or {}
     country_name = region.get("name") or None
 
@@ -245,6 +246,7 @@ def parse_upcoming_event(event_data: dict[str, Any]) -> UpcomingEvent | None:
         home_team=home_team,
         away_team=away_team,
         competition_name=competition_name,
+        competition_id=competition_id,
         country_name=country_name,
         start_time=start_time,
         provider_ids=provider_ids,

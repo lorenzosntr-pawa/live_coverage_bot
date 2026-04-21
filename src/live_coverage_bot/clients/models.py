@@ -30,6 +30,7 @@ class UpcomingEvent(BaseModel):
     home_team: str
     away_team: str
     competition_name: str
+    competition_id: str = ""
     country_name: str | None = None
     start_time: datetime
     provider_ids: list["ProviderID"]  # Preserves BOTH SPORTRADAR and GENIUSSPORTS
