@@ -565,7 +565,7 @@ class TestLateReasonClassification:
         assert event.live_minute is None
 
 
-class _TestKickoffReschedule:  # Disabled for Task 5 commit
+class TestKickoffReschedule:
     async def test_late_reverts_to_prematch_on_reschedule(self, db):
         from live_coverage_bot.clients.models import UpcomingEvent
 

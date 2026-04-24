@@ -363,6 +363,30 @@ class EventLifecycleTracker:
             )
 
         if event.status == EventStatus.LATE and not is_in_live_feed:
+            # Check for kickoff reschedule before hard timeout
+            if prematch_events_map is not None:
+                prematch_event = prematch_events_map.get(event.betpawa_event_id)
+                if prematch_event is not None:
+                    time_diff = abs((prematch_event.start_time - event.scheduled_kickoff).total_seconds())
+                    if time_diff > 60:  # More than 1 minute difference
+                        old_kickoff_str = event.scheduled_kickoff.strftime("%H:%M")
+                        new_kickoff_str = prematch_event.start_time.strftime("%H:%M")
+                        details = f"Kickoff rescheduled: {old_kickoff_str} \u2192 {new_kickoff_str} UTC"
+                        await self._repo.update_scheduled_kickoff(
+                            event.id, new_kickoff=prematch_event.start_time,
+                            late_reason="KICKOFF_RESCHEDULED", updated_at=now,
+                        )
+                        await self._repo.update_status(event.id, EventStatus.PREMATCH, updated_at=now)
+                        await self._repo.insert_state_change(
+                            event.id, old_status, EventStatus.PREMATCH, now, details=details,
+                        )
+                        return TransitionResult(
+                            event=event,
+                            old_status=old_status,
+                            new_status=EventStatus.PREMATCH,
+                            details=details,
+                        )
+
             if elapsed_min >= self._hard_timeout_minutes:
                 details = f"Timed out after {int(elapsed_min)}min"
                 await self._repo.update_status(event.id, EventStatus.NEVER_LIVE, updated_at=now)
