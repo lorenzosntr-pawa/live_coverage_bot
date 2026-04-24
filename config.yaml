@@ -8,6 +8,7 @@ polling:
 thresholds:
   grace_period_minutes: 5
   hard_timeout_minutes: 90
+  coverage_late_minute_threshold: 5
 
 betpawa:
   base_url: "https://www.betpawa.ng/api/sportsbook/v3"

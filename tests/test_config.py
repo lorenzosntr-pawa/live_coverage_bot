@@ -120,3 +120,15 @@ class TestNewMarketConfig:
         from live_coverage_bot.config.models import MarketsConfig
         cfg = MarketsConfig()
         assert cfg.odds_shift_display_threshold == 5.0
+
+
+class TestCoverageLateThreshold:
+    def test_default_coverage_late_minute_threshold(self):
+        from live_coverage_bot.config.models import ThresholdConfig
+        config = ThresholdConfig()
+        assert config.coverage_late_minute_threshold == 5
+
+    def test_custom_coverage_late_minute_threshold(self):
+        from live_coverage_bot.config.models import ThresholdConfig
+        config = ThresholdConfig(coverage_late_minute_threshold=10)
+        assert config.coverage_late_minute_threshold == 10

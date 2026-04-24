@@ -18,6 +18,7 @@ class ThresholdConfig(BaseModel):
     grace_period_minutes: int = 5
     hard_timeout_minutes: int = 90
     on_time_threshold_seconds: int = 300
+    coverage_late_minute_threshold: int = 5
 
 
 class BetPawaConfig(BaseModel):
