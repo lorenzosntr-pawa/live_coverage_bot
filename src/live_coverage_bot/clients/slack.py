@@ -209,10 +209,13 @@ class SlackClient:
         return data["ts"]
 
     async def update_message(
-        self, ts: str, event: TrackedEvent, now: datetime | None = None
+        self, ts: str, event: TrackedEvent | None = None, now: datetime | None = None,
+        *, text: str | None = None,
     ) -> None:
         """Update an existing parent message."""
-        text = self.format_parent_message(event, now)
+        if text is None:
+            assert event is not None
+            text = self.format_parent_message(event, now)
         response = await self._client.post(
             "/chat.update",
             json={"channel": self._config.channel_id, "ts": ts, "text": text},

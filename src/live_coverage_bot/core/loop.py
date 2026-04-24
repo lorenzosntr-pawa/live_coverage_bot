@@ -4,9 +4,10 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from live_coverage_bot.clients.betpawa import BetPawaClient, BetPawaError
-from live_coverage_bot.clients.slack import SlackClient, SlackError
+from live_coverage_bot.clients.slack import EMOJI_CALENDAR, SlackClient, SlackError
 from live_coverage_bot.config.models import Settings
 from live_coverage_bot.core.market_comparator import compare_snapshots
 from live_coverage_bot.core.market_reporter import MarketReporter
@@ -46,6 +47,7 @@ class MonitoringLoop:
             self._repo,
             grace_period_minutes=self._settings.thresholds.grace_period_minutes,
             hard_timeout_minutes=self._settings.thresholds.hard_timeout_minutes,
+            coverage_late_minute_threshold=self._settings.thresholds.coverage_late_minute_threshold,
         )
 
         async with (
@@ -178,6 +180,15 @@ class MonitoringLoop:
 
         live_betpawa_ids = BetPawaClient.build_live_betpawa_id_set(live_events)
 
+        # Build betpawa_id → LiveEvent map for late reason classification
+        live_events_map: dict[str, Any] = {}
+        for le in live_events:
+            eid = le.event_id
+            if eid.startswith("bp:"):
+                eid = eid[3:]
+            live_events_map[eid] = le
+
+        prematch_events_map: dict[str, Any] | None = None
         current_prematch_ids: set[str] | None = None
         if should_fetch_prematch:
             self._prematch_cycle_counter = 0
@@ -191,12 +202,17 @@ class MonitoringLoop:
                     logger.info("Registered %d new prematch events", len(new_ids))
 
                 current_prematch_ids = {e.event_id for e in upcoming}
+                prematch_events_map = {e.event_id: e for e in upcoming}
 
             except BetPawaError as e:
                 logger.warning("BetPawa prematch fetch failed: %s", e)
 
         # Lifecycle transitions first — so events going LIVE are not falsely marked REMOVED
-        transitions = await self._tracker.check_transitions(live_betpawa_ids, now=now)
+        transitions = await self._tracker.check_transitions(
+            live_betpawa_ids, now=now,
+            live_events_map=live_events_map,
+            prematch_events_map=prematch_events_map,
+        )
         live_transition_bp_ids: set[str] = {
             t.event.betpawa_event_id
             for t in transitions
@@ -293,12 +309,50 @@ class MonitoringLoop:
                     refreshed.betpawa_event_id, refreshed.home_team, refreshed.away_team,
                 )
 
+            elif old_status == EventStatus.LATE and new_status == EventStatus.PREMATCH:
+                # Kickoff rescheduled — update parent message and add thread reply
+                if refreshed.slack_message_ts:
+                    # Parse old/new kickoff from details string
+                    # Details format: "Kickoff rescheduled: HH:MM → HH:MM UTC"
+                    old_kickoff_str = transition.details.split(": ")[1].split(" \u2192 ")[0]
+                    new_kickoff_str = transition.details.split("\u2192 ")[1].replace(" UTC", "")
+                    # Build datetimes for formatting (use event date)
+                    event_date = refreshed.scheduled_kickoff.date()
+                    from datetime import time as dt_time
+                    old_h, old_m = map(int, old_kickoff_str.split(":"))
+                    new_h, new_m = map(int, new_kickoff_str.split(":"))
+                    old_kickoff = datetime.combine(
+                        event_date, dt_time(old_h, old_m), tzinfo=UTC
+                    )
+                    new_kickoff = datetime.combine(
+                        event_date, dt_time(new_h, new_m), tzinfo=UTC
+                    )
+
+                    reschedule_text = slack.format_reschedule_message(
+                        refreshed, old_kickoff, new_kickoff
+                    )
+                    await slack.update_message(refreshed.slack_message_ts, text=reschedule_text)
+
+                    reply = (
+                        f"{EMOJI_CALENDAR} Kickoff rescheduled: "
+                        f"{old_kickoff_str} \u2192 {new_kickoff_str} UTC "
+                        f"\u2014 reverted to prematch monitoring"
+                    )
+                    await slack.post_thread_reply(refreshed.slack_message_ts, reply)
+                    logger.info(
+                        "Reschedule: %s %s vs %s (%s -> %s UTC)",
+                        refreshed.betpawa_event_id, refreshed.home_team,
+                        refreshed.away_team, old_kickoff_str, new_kickoff_str,
+                    )
+
             elif new_status in (EventStatus.LIVE, EventStatus.NEVER_LIVE):
                 if refreshed.slack_message_ts:
                     await slack.update_message(refreshed.slack_message_ts, refreshed, now)
                     delay_sec = transition.delay_sec
                     if new_status == EventStatus.LIVE and delay_sec is not None:
                         detail = f"delay: {delay_sec // 60}min"
+                        if transition.live_minute is not None:
+                            detail += f", provider minute: {transition.live_minute}'"
                     elif new_status == EventStatus.NEVER_LIVE:
                         detail = "timed out"
                     else:
