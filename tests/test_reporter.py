@@ -156,3 +156,66 @@ class TestUnmonitoredInReport:
         lines = summary.split("\n")
         sr_line = next(l for l in lines if "SPORTRADAR" in l)
         assert "3 events" in sr_line
+
+
+class TestLateReasonReport:
+    async def test_summary_includes_late_reason_breakdown(self, reporter, repo):
+        base = datetime(2026, 4, 14, tzinfo=UTC)
+        pids = [ProviderID(type=ProviderType.SPORTRADAR, id="100")]
+        events = [
+            TrackedEvent(
+                betpawa_event_id="10", home_team="A", away_team="B",
+                competition="EPL", country="England",
+                scheduled_kickoff=base, status=EventStatus.LIVE,
+                provider_ids=pids, first_seen_prematch=base,
+                first_seen_live=base, transition_delay_sec=600,
+                late_reason="COVERAGE_LATE", live_minute=12,
+            ),
+            TrackedEvent(
+                betpawa_event_id="11", home_team="C", away_team="D",
+                competition="EPL", country="England",
+                scheduled_kickoff=base, status=EventStatus.LIVE,
+                provider_ids=pids, first_seen_prematch=base,
+                first_seen_live=base, transition_delay_sec=720,
+                late_reason="MATCH_DELAYED", live_minute=3,
+            ),
+            TrackedEvent(
+                betpawa_event_id="12", home_team="E", away_team="F",
+                competition="EPL", country="England",
+                scheduled_kickoff=base, status=EventStatus.LIVE,
+                provider_ids=pids, first_seen_prematch=base,
+                first_seen_live=base, transition_delay_sec=0,
+                late_reason="KICKOFF_RESCHEDULED",
+            ),
+        ]
+        for e in events:
+            await repo.insert_event(e)
+
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        summary = await reporter.generate_slack_summary(start, end)
+        assert "Coverage late" in summary or "coverage late" in summary
+        assert "Match delayed" in summary or "match delayed" in summary
+        assert "Rescheduled" in summary or "rescheduled" in summary
+
+    async def test_csv_includes_late_reason_columns(self, reporter, repo):
+        base = datetime(2026, 4, 14, tzinfo=UTC)
+        pids = [ProviderID(type=ProviderType.SPORTRADAR, id="100")]
+        event = TrackedEvent(
+            betpawa_event_id="20", home_team="G", away_team="H",
+            competition="EPL", country="England",
+            scheduled_kickoff=base, status=EventStatus.LIVE,
+            provider_ids=pids, first_seen_prematch=base,
+            first_seen_live=base, transition_delay_sec=600,
+            late_reason="COVERAGE_LATE", live_minute=15,
+        )
+        await repo.insert_event(event)
+
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 15, tzinfo=UTC)
+        csv_content = await reporter.generate_csv(start, end)
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        assert len(rows) == 1
+        assert rows[0]["late_reason"] == "COVERAGE_LATE"
+        assert rows[0]["live_minute"] == "15"

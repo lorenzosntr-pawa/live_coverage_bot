@@ -105,6 +105,21 @@ class WeeklyReporter:
                     f"({worst_event.scheduled_kickoff.strftime('%b %d')})"
                 )
 
+        # Late reason breakdown
+        reasons = [e.late_reason for e in events if e.late_reason]
+        if reasons:
+            reason_counts = Counter(reasons)
+            lines.append("")
+            lines.append("Late reason breakdown:")
+            label_map = {
+                "COVERAGE_LATE": "Coverage late",
+                "MATCH_DELAYED": "Match delayed",
+                "KICKOFF_RESCHEDULED": "Rescheduled",
+            }
+            for reason, count in reason_counts.most_common():
+                label = label_map.get(reason, reason)
+                lines.append(f"  {label}: {count}")
+
         lines.append("")
         lines.append("By provider:")
         monitored_events = [e for e in events if e.status != EventStatus.UNMONITORED]
@@ -148,7 +163,7 @@ class WeeklyReporter:
                 "date", "betpawa_event_id", "home_team", "away_team",
                 "competition", "country", "provider_type", "provider_id",
                 "scheduled_kickoff", "status", "first_seen_live",
-                "transition_delay_sec",
+                "transition_delay_sec", "late_reason", "live_minute",
             ],
         )
         writer.writeheader()
@@ -168,6 +183,8 @@ class WeeklyReporter:
                 "status": event.status.value,
                 "first_seen_live": event.first_seen_live.isoformat() if event.first_seen_live else "",
                 "transition_delay_sec": event.transition_delay_sec if event.transition_delay_sec is not None else "",
+                "late_reason": event.late_reason or "",
+                "live_minute": event.live_minute if event.live_minute is not None else "",
             })
 
         return output.getvalue()
