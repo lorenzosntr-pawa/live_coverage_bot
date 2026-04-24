@@ -18,10 +18,12 @@ class EventLifecycleTracker:
         repo: EventRepository,
         grace_period_minutes: int = 5,
         hard_timeout_minutes: int = 90,
+        coverage_late_minute_threshold: int = 5,
     ) -> None:
         self._repo = repo
         self._grace_period_minutes = grace_period_minutes
         self._hard_timeout_minutes = hard_timeout_minutes
+        self._coverage_late_minute_threshold = coverage_late_minute_threshold
 
     async def register_prematch_events(
         self,
@@ -58,6 +60,9 @@ class EventLifecycleTracker:
         self,
         live_betpawa_ids: set[str],
         now: datetime,
+        *,
+        live_events_map: dict[str, Any] | None = None,
+        prematch_events_map: dict[str, Any] | None = None,
     ) -> list[TransitionResult]:
         """Check all active events for state transitions.
 
@@ -75,7 +80,11 @@ class EventLifecycleTracker:
             assert event.id is not None
             is_in_live_feed = event.betpawa_event_id in live_betpawa_ids
 
-            transition = await self._evaluate_transition(event, is_in_live_feed, now)
+            transition = await self._evaluate_transition(
+                event, is_in_live_feed, now,
+                live_events_map=live_events_map,
+                prematch_events_map=prematch_events_map,
+            )
             if transition:
                 transitions.append(transition)
 
@@ -254,11 +263,40 @@ class EventLifecycleTracker:
 
         return count
 
+    def _classify_live_minute(
+        self,
+        betpawa_event_id: str,
+        live_events_map: dict[str, Any] | None,
+    ) -> tuple[int | None, str | None]:
+        """Extract live minute and classify late reason from live event data.
+
+        Returns (live_minute, late_reason).
+        """
+        if live_events_map is None:
+            return None, None
+        live_event = live_events_map.get(betpawa_event_id)
+        if live_event is None:
+            return None, None
+        minute_str = live_event.minute
+        if minute_str is None:
+            return None, None
+        try:
+            minute = int(minute_str)
+        except (ValueError, TypeError):
+            return None, None
+        if minute <= self._coverage_late_minute_threshold:
+            return minute, "MATCH_DELAYED"
+        else:
+            return minute, "COVERAGE_LATE"
+
     async def _evaluate_transition(
         self,
         event: TrackedEvent,
         is_in_live_feed: bool,
         now: datetime,
+        *,
+        live_events_map: dict[str, Any] | None = None,
+        prematch_events_map: dict[str, Any] | None = None,
     ) -> TransitionResult | None:
         """Evaluate a single event for state transition."""
         assert event.id is not None
@@ -269,8 +307,14 @@ class EventLifecycleTracker:
         if event.status == EventStatus.PREMATCH and is_in_live_feed:
             delay_sec = max(0, int(elapsed_sec))
             details = f"Went live ({delay_sec // 60}min after kickoff)" if delay_sec > 0 else "Went live on time"
+            live_minute, late_reason = self._classify_live_minute(event.betpawa_event_id, live_events_map)
+            if late_reason == "MATCH_DELAYED":
+                late_reason = None  # Normal on-time transition
             await self._repo.update_status(event.id, EventStatus.LIVE, updated_at=now)
-            await self._repo.update_live_fields(event.id, first_seen_live=now, transition_delay_sec=delay_sec)
+            await self._repo.update_live_fields(
+                event.id, first_seen_live=now, transition_delay_sec=delay_sec,
+                late_reason=late_reason, live_minute=live_minute,
+            )
             await self._repo.insert_state_change(
                 event.id, old_status, EventStatus.LIVE, now, details=details,
             )
@@ -279,6 +323,7 @@ class EventLifecycleTracker:
                 old_status=old_status,
                 new_status=EventStatus.LIVE,
                 delay_sec=delay_sec,
+                live_minute=live_minute,
                 details=details,
             )
 
@@ -299,8 +344,12 @@ class EventLifecycleTracker:
         if event.status == EventStatus.LATE and is_in_live_feed:
             delay_sec = max(0, int(elapsed_sec))
             details = f"Went live (delay: {delay_sec // 60}min)"
+            live_minute, late_reason = self._classify_live_minute(event.betpawa_event_id, live_events_map)
             await self._repo.update_status(event.id, EventStatus.LIVE, updated_at=now)
-            await self._repo.update_live_fields(event.id, first_seen_live=now, transition_delay_sec=delay_sec)
+            await self._repo.update_live_fields(
+                event.id, first_seen_live=now, transition_delay_sec=delay_sec,
+                late_reason=late_reason, live_minute=live_minute,
+            )
             await self._repo.insert_state_change(
                 event.id, old_status, EventStatus.LIVE, now, details=details,
             )
@@ -309,6 +358,7 @@ class EventLifecycleTracker:
                 old_status=old_status,
                 new_status=EventStatus.LIVE,
                 delay_sec=delay_sec,
+                live_minute=live_minute,
                 details=details,
             )
 

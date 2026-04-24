@@ -482,3 +482,160 @@ class TestTypedReturns:
         assert len(results) == 1
         assert isinstance(results[0], RemovedResult)
         assert results[0].old_status == EventStatus.PREMATCH
+
+
+class TestLateReasonClassification:
+    async def test_late_to_live_coverage_late(self, db):
+        """Minute > threshold → COVERAGE_LATE."""
+        from live_coverage_bot.clients.models import LiveEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99001", "home_team": "Arsenal", "away_team": "Chelsea", "competition": "EPL", "country": "England", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 12, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=6))
+        live_event = LiveEvent(event_id="bp:99001", home_team="Arsenal", away_team="Chelsea", competition_id="1", competition_name="EPL", minute="23", home_score=0, away_score=0, start_time=kickoff)
+        transitions = await tracker.check_transitions({"99001"}, now=kickoff + timedelta(minutes=25), live_events_map={"99001": live_event})
+        assert len(transitions) == 1
+        assert transitions[0].new_status == EventStatus.LIVE
+        assert transitions[0].live_minute == 23
+        event = await repo.get_by_betpawa_id("99001")
+        assert event.late_reason == "COVERAGE_LATE"
+        assert event.live_minute == 23
+
+    async def test_late_to_live_match_delayed(self, db):
+        """Minute <= threshold → MATCH_DELAYED."""
+        from live_coverage_bot.clients.models import LiveEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99002", "home_team": "Liverpool", "away_team": "City", "competition": "EPL", "country": "England", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 12, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=6))
+        live_event = LiveEvent(event_id="bp:99002", home_team="Liverpool", away_team="City", competition_id="1", competition_name="EPL", minute="2", home_score=0, away_score=0, start_time=kickoff)
+        transitions = await tracker.check_transitions({"99002"}, now=kickoff + timedelta(minutes=12), live_events_map={"99002": live_event})
+        assert len(transitions) == 1
+        assert transitions[0].live_minute == 2
+        event = await repo.get_by_betpawa_id("99002")
+        assert event.late_reason == "MATCH_DELAYED"
+        assert event.live_minute == 2
+
+    async def test_prematch_to_live_coverage_late(self, db):
+        """PREMATCH → LIVE with minute > threshold → COVERAGE_LATE."""
+        from live_coverage_bot.clients.models import LiveEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99003", "home_team": "Spurs", "away_team": "West Ham", "competition": "EPL", "country": "England", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 12, 0, tzinfo=UTC))
+        live_event = LiveEvent(event_id="bp:99003", home_team="Spurs", away_team="West Ham", competition_id="1", competition_name="EPL", minute="12", home_score=0, away_score=0, start_time=kickoff)
+        transitions = await tracker.check_transitions({"99003"}, now=kickoff + timedelta(minutes=3), live_events_map={"99003": live_event})
+        assert len(transitions) == 1
+        assert transitions[0].new_status == EventStatus.LIVE
+        event = await repo.get_by_betpawa_id("99003")
+        assert event.late_reason == "COVERAGE_LATE"
+        assert event.live_minute == 12
+
+    async def test_prematch_to_live_on_time_no_reason(self, db):
+        """PREMATCH → LIVE with minute <= threshold → no late_reason."""
+        from live_coverage_bot.clients.models import LiveEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99004", "home_team": "Brighton", "away_team": "Everton", "competition": "EPL", "country": "England", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 12, 0, tzinfo=UTC))
+        live_event = LiveEvent(event_id="bp:99004", home_team="Brighton", away_team="Everton", competition_id="1", competition_name="EPL", minute="1", home_score=0, away_score=0, start_time=kickoff)
+        transitions = await tracker.check_transitions({"99004"}, now=kickoff + timedelta(minutes=1), live_events_map={"99004": live_event})
+        assert len(transitions) == 1
+        event = await repo.get_by_betpawa_id("99004")
+        assert event.late_reason is None
+        assert event.live_minute == 1
+
+    async def test_late_to_live_no_map_no_classification(self, db):
+        """Without live_events_map, live_minute and late_reason stay None."""
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 15, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99005", "home_team": "A", "away_team": "B", "competition": "EPL", "country": "England", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 12, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=6))
+        transitions = await tracker.check_transitions({"99005"}, now=kickoff + timedelta(minutes=12))
+        assert len(transitions) == 1
+        event = await repo.get_by_betpawa_id("99005")
+        assert event.late_reason is None
+        assert event.live_minute is None
+
+
+class _TestKickoffReschedule:  # Disabled for Task 5 commit
+    async def test_late_reverts_to_prematch_on_reschedule(self, db):
+        from live_coverage_bot.clients.models import UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99010", "home_team": "TeamA", "away_team": "TeamB", "competition": "U19 Elit A", "country": "Turkey", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 10, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=6))
+        event = await repo.get_by_betpawa_id("99010")
+        assert event.status == EventStatus.LATE
+
+        new_kickoff = datetime(2026, 4, 15, 13, 0, tzinfo=UTC)
+        prematch_event = UpcomingEvent(event_id="99010", home_team="TeamA", away_team="TeamB", competition_name="U19 Elit A", country_name="Turkey", start_time=new_kickoff, provider_ids=_make_provider_ids())
+        transitions = await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=7), prematch_events_map={"99010": prematch_event})
+        assert len(transitions) == 1
+        t = transitions[0]
+        assert t.old_status == EventStatus.LATE
+        assert t.new_status == EventStatus.PREMATCH
+        assert "12:00" in t.details
+        assert "13:00" in t.details
+        event = await repo.get_by_betpawa_id("99010")
+        assert event.status == EventStatus.PREMATCH
+        assert event.scheduled_kickoff == new_kickoff
+        assert event.late_reason == "KICKOFF_RESCHEDULED"
+
+    async def test_late_no_reschedule_if_same_kickoff(self, db):
+        from live_coverage_bot.clients.models import UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99011", "home_team": "TeamC", "away_team": "TeamD", "competition": "Test", "country": "Test", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 10, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=6))
+        prematch_event = UpcomingEvent(event_id="99011", home_team="TeamC", away_team="TeamD", competition_name="Test", country_name="Test", start_time=kickoff, provider_ids=_make_provider_ids())
+        transitions = await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=7), prematch_events_map={"99011": prematch_event})
+        assert len(transitions) == 0
+        event = await repo.get_by_betpawa_id("99011")
+        assert event.status == EventStatus.LATE
+
+    async def test_late_no_prematch_map_skips_reschedule(self, db):
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99012", "home_team": "TeamE", "away_team": "TeamF", "competition": "Test", "country": "Test", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 10, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=6))
+        transitions = await tracker.check_transitions(set(), now=kickoff + timedelta(minutes=7))
+        assert len(transitions) == 0
+
+    async def test_reschedule_then_normal_live(self, db):
+        """Full lifecycle: PREMATCH → LATE → PREMATCH (reschedule) → LIVE."""
+        from live_coverage_bot.clients.models import LiveEvent, UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        old_kickoff = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        new_kickoff = datetime(2026, 4, 15, 13, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99013", "home_team": "TeamG", "away_team": "TeamH", "competition": "Test", "country": "Test", "scheduled_kickoff": old_kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 15, 10, 0, tzinfo=UTC))
+        await tracker.check_transitions(set(), now=old_kickoff + timedelta(minutes=6))
+        prematch_event = UpcomingEvent(event_id="99013", home_team="TeamG", away_team="TeamH", competition_name="Test", country_name="Test", start_time=new_kickoff, provider_ids=_make_provider_ids())
+        await tracker.check_transitions(set(), now=old_kickoff + timedelta(minutes=7), prematch_events_map={"99013": prematch_event})
+        live_event = LiveEvent(event_id="bp:99013", home_team="TeamG", away_team="TeamH", competition_id="1", competition_name="Test", minute="1", home_score=0, away_score=0, start_time=new_kickoff)
+        transitions = await tracker.check_transitions({"99013"}, now=new_kickoff + timedelta(minutes=1), live_events_map={"99013": live_event})
+        assert len(transitions) == 1
+        assert transitions[0].new_status == EventStatus.LIVE
+        event = await repo.get_by_betpawa_id("99013")
+        assert event.status == EventStatus.LIVE
+        assert event.transition_delay_sec == 60
+        assert event.live_minute == 1
+        changes = await repo.get_state_changes(event.id)
+        statuses = [(c.old_status, c.new_status) for c in changes]
+        assert (EventStatus.PREMATCH, EventStatus.LATE) in statuses
+        assert (EventStatus.LATE, EventStatus.PREMATCH) in statuses
+        assert (EventStatus.PREMATCH, EventStatus.LIVE) in statuses
