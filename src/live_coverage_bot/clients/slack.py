@@ -28,6 +28,7 @@ EMOJI_CHECK = "\u2705"           # ✅
 EMOJI_STOP = "\U0001f6d1"        # 🛑
 EMOJI_CHART = "\U0001f4ca"       # 📊
 EMOJI_DASH = "\u2014"            # —
+EMOJI_CALENDAR = "\U0001f4c5"    # 📅
 EMOJI_POWER = "\U0001f50b"       # 🔋
 EMOJI_CRASH = "\U0001f4a5"       # 💥
 EMOJI_RESTART = "\U0001f504"     # 🔄
@@ -87,13 +88,23 @@ class SlackClient:
             if event.transition_delay_sec is not None:
                 delay_min = event.transition_delay_sec // 60
                 delay_str = f"+{delay_min}min"
-            return (
-                f"{EMOJI_LIVE} WENT LIVE {EMOJI_DASH} {event.home_team} vs {event.away_team}\n"
-                f"{EMOJI_CLIPBOARD} {competition_line}\n"
-                f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | Live at: {live_str} ({delay_str})\n"
-                f"{EMOJI_PLUG} {provider_str}\n"
-                f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}"
-            )
+
+            lines = [
+                f"{EMOJI_LIVE} WENT LIVE {EMOJI_DASH} {event.home_team} vs {event.away_team}",
+                f"{EMOJI_CLIPBOARD} {competition_line}",
+                f"{EMOJI_CLOCK} Kickoff: {kickoff_str} | Live at: {live_str} ({delay_str})",
+                f"{EMOJI_PLUG} {provider_str}",
+                f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}",
+            ]
+
+            if event.late_reason == "COVERAGE_LATE" and event.live_minute is not None:
+                lines.append(
+                    f"{EMOJI_WARNING} Provider at minute {event.live_minute}' \u2014 coverage started late"
+                )
+            elif event.late_reason == "MATCH_DELAYED" and event.live_minute is not None:
+                lines.append(f"Match started late (minute {event.live_minute}')")
+
+            return "\n".join(lines)
 
         if event.status == EventStatus.NEVER_LIVE:
             return (
@@ -126,6 +137,21 @@ class SlackClient:
             return "\n".join(lines)
 
         return f"{event.home_team} vs {event.away_team} [{event.status}] | BetPawa ID: {event.betpawa_event_id}"
+
+    def format_reschedule_message(
+        self, event: TrackedEvent, old_kickoff: datetime, new_kickoff: datetime,
+    ) -> str:
+        """Format a rescheduled event parent message."""
+        provider_str, competition_line, _ = self._format_event_header(event)
+        old_str = old_kickoff.strftime("%H:%M UTC")
+        new_str = new_kickoff.strftime("%H:%M UTC")
+        return (
+            f"{EMOJI_CALENDAR} RESCHEDULED {EMOJI_DASH} {event.home_team} vs {event.away_team}\n"
+            f"{EMOJI_CLIPBOARD} {competition_line}\n"
+            f"{EMOJI_CLOCK} Kickoff: {old_str} \u2192 {new_str}\n"
+            f"{EMOJI_PLUG} {provider_str}\n"
+            f"{EMOJI_ID} BetPawa ID: {event.betpawa_event_id}"
+        )
 
     def format_thread_reply(
         self,

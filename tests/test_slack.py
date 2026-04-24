@@ -362,6 +362,54 @@ class TestBotStatusFormatting:
         assert "Apr 18" in msg or "18" in msg
 
 
+class TestLateReasonFormatting:
+    def test_went_live_coverage_late(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        sample_event.status = EventStatus.LIVE
+        sample_event.first_seen_live = datetime(2026, 4, 15, 15, 25, tzinfo=UTC)
+        sample_event.transition_delay_sec = 1500
+        sample_event.late_reason = "COVERAGE_LATE"
+        sample_event.live_minute = 23
+        text = client.format_parent_message(sample_event)
+        assert "WENT LIVE" in text
+        assert "23'" in text
+        assert "coverage started late" in text.lower()
+
+    def test_went_live_match_delayed(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        sample_event.status = EventStatus.LIVE
+        sample_event.first_seen_live = datetime(2026, 4, 15, 15, 12, tzinfo=UTC)
+        sample_event.transition_delay_sec = 720
+        sample_event.late_reason = "MATCH_DELAYED"
+        sample_event.live_minute = 2
+        text = client.format_parent_message(sample_event)
+        assert "WENT LIVE" in text
+        assert "2'" in text
+        assert "started late" in text.lower()
+
+    def test_went_live_no_late_reason(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        sample_event.status = EventStatus.LIVE
+        sample_event.first_seen_live = datetime(2026, 4, 15, 15, 1, tzinfo=UTC)
+        sample_event.transition_delay_sec = 60
+        sample_event.late_reason = None
+        sample_event.live_minute = 1
+        text = client.format_parent_message(sample_event)
+        assert "WENT LIVE" in text
+        assert "coverage started late" not in text.lower()
+
+    def test_format_reschedule_message(self, slack_config, sample_event):
+        client = SlackClient(slack_config)
+        old_kickoff = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        new_kickoff = datetime(2026, 4, 15, 13, 0, tzinfo=UTC)
+        sample_event.scheduled_kickoff = new_kickoff
+        text = client.format_reschedule_message(sample_event, old_kickoff, new_kickoff)
+        assert "RESCHEDULED" in text
+        assert "12:00" in text
+        assert "13:00" in text
+        assert "Arsenal vs Chelsea" in text
+
+
 class TestEventHeaderHelper:
     def test_format_event_header(self, slack_config, sample_event):
         client = SlackClient(slack_config)
