@@ -92,6 +92,10 @@ ALTER TABLE market_comparisons ADD COLUMN snapshot_phase TEXT;
 
 -- Feature 4: Competition ID for league filtering
 ALTER TABLE events ADD COLUMN competition_id TEXT DEFAULT '';
+
+-- Feature 5: Late reason classification
+ALTER TABLE events ADD COLUMN late_reason TEXT;
+ALTER TABLE events ADD COLUMN live_minute INTEGER;
 """
 
 

@@ -224,6 +224,18 @@ class TestHeartbeatOperations:
         assert datetime.fromisoformat(row["started_at"]) == start
 
 
+class TestLateReasonColumns:
+    async def test_events_has_late_reason_column(self, db: Database):
+        columns = await db.fetch_all("PRAGMA table_info(events)")
+        col_names = {row["name"] for row in columns}
+        assert "late_reason" in col_names
+
+    async def test_events_has_live_minute_column(self, db: Database):
+        columns = await db.fetch_all("PRAGMA table_info(events)")
+        col_names = {row["name"] for row in columns}
+        assert "live_minute" in col_names
+
+
 class TestMarketSchema:
     async def test_market_tables_exist(self, db):
         tables = await db.fetch_all(
