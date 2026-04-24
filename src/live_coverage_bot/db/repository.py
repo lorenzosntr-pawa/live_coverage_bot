@@ -23,9 +23,9 @@ class EventRepository:
             """INSERT INTO events
             (betpawa_event_id, home_team, away_team, competition, competition_id, country,
              scheduled_kickoff, status, provider_ids, first_seen_prematch,
-             first_seen_live, transition_delay_sec, slack_message_ts,
-             removed_at, pre_removal_market_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             first_seen_live, transition_delay_sec, late_reason, live_minute,
+             slack_message_ts, removed_at, pre_removal_market_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.betpawa_event_id,
                 event.home_team,
@@ -39,6 +39,8 @@ class EventRepository:
                 event.first_seen_prematch.isoformat(),
                 event.first_seen_live.isoformat() if event.first_seen_live else None,
                 event.transition_delay_sec,
+                event.late_reason,
+                event.live_minute,
                 event.slack_message_ts,
                 event.removed_at.isoformat() if event.removed_at else None,
                 event.pre_removal_market_count,
@@ -96,17 +98,35 @@ class EventRepository:
         event_id: int,
         first_seen_live: datetime,
         transition_delay_sec: int,
+        late_reason: str | None = None,
+        live_minute: int | None = None,
     ) -> None:
         """Update live-specific fields when event goes live."""
         await self._db.execute(
             """UPDATE events SET first_seen_live = ?, transition_delay_sec = ?,
-            updated_at = ? WHERE id = ?""",
+            late_reason = ?, live_minute = ?, updated_at = ? WHERE id = ?""",
             (
                 first_seen_live.isoformat(),
                 transition_delay_sec,
+                late_reason,
+                live_minute,
                 first_seen_live.isoformat(),
                 event_id,
             ),
+        )
+
+    async def update_scheduled_kickoff(
+        self,
+        event_id: int,
+        new_kickoff: datetime,
+        late_reason: str,
+        updated_at: datetime,
+    ) -> None:
+        """Update scheduled kickoff time and late reason (for reschedules)."""
+        await self._db.execute(
+            """UPDATE events SET scheduled_kickoff = ?, late_reason = ?,
+            updated_at = ? WHERE id = ?""",
+            (new_kickoff.isoformat(), late_reason, updated_at.isoformat(), event_id),
         )
 
     async def update_removed_fields(
@@ -231,6 +251,8 @@ class EventRepository:
             first_seen_prematch=datetime.fromisoformat(row["first_seen_prematch"]),
             first_seen_live=_parse_dt(row["first_seen_live"]),
             transition_delay_sec=row["transition_delay_sec"],
+            late_reason=row.get("late_reason"),
+            live_minute=row.get("live_minute"),
             slack_message_ts=row["slack_message_ts"],
             removed_at=_parse_dt(row.get("removed_at")),
             pre_removal_market_count=row.get("pre_removal_market_count"),

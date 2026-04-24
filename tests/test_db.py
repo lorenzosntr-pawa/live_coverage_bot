@@ -224,6 +224,68 @@ class TestHeartbeatOperations:
         assert datetime.fromisoformat(row["started_at"]) == start
 
 
+class TestLateReasonRepository:
+    @pytest.fixture
+    def repo(self, db: Database) -> EventRepository:
+        return EventRepository(db)
+
+    def _make_event(self, **overrides) -> TrackedEvent:
+        defaults = dict(
+            betpawa_event_id="99001",
+            home_team="Arsenal", away_team="Chelsea",
+            competition="EPL", country="England",
+            scheduled_kickoff=datetime(2026, 4, 15, 15, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="12345")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        )
+        defaults.update(overrides)
+        return TrackedEvent(**defaults)
+
+    async def test_update_live_fields_with_late_reason(self, repo):
+        event = self._make_event()
+        row_id = await repo.insert_event(event)
+
+        live_time = datetime(2026, 4, 15, 15, 12, tzinfo=UTC)
+        await repo.update_live_fields(
+            row_id, first_seen_live=live_time, transition_delay_sec=720,
+            late_reason="COVERAGE_LATE", live_minute=23,
+        )
+
+        fetched = await repo.get_by_betpawa_id("99001")
+        assert fetched.late_reason == "COVERAGE_LATE"
+        assert fetched.live_minute == 23
+        assert fetched.transition_delay_sec == 720
+
+    async def test_update_live_fields_without_late_reason(self, repo):
+        event = self._make_event()
+        row_id = await repo.insert_event(event)
+
+        live_time = datetime(2026, 4, 15, 15, 1, tzinfo=UTC)
+        await repo.update_live_fields(
+            row_id, first_seen_live=live_time, transition_delay_sec=60,
+        )
+
+        fetched = await repo.get_by_betpawa_id("99001")
+        assert fetched.late_reason is None
+        assert fetched.live_minute is None
+
+    async def test_update_scheduled_kickoff(self, repo):
+        event = self._make_event()
+        row_id = await repo.insert_event(event)
+
+        new_kickoff = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+        now = datetime(2026, 4, 15, 15, 6, tzinfo=UTC)
+        await repo.update_scheduled_kickoff(
+            row_id, new_kickoff=new_kickoff, late_reason="KICKOFF_RESCHEDULED",
+            updated_at=now,
+        )
+
+        fetched = await repo.get_by_betpawa_id("99001")
+        assert fetched.scheduled_kickoff == new_kickoff
+        assert fetched.late_reason == "KICKOFF_RESCHEDULED"
+
+
 class TestLateReasonColumns:
     async def test_events_has_late_reason_column(self, db: Database):
         columns = await db.fetch_all("PRAGMA table_info(events)")
