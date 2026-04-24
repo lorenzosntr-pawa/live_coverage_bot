@@ -80,6 +80,61 @@ class TestTrackedEvent:
         assert '"67890"' in json_str
 
 
+class TestLateReasonFields:
+    def test_tracked_event_late_reason_default_none(self):
+        from live_coverage_bot.models.events import TrackedEvent, EventStatus
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        event = TrackedEvent(
+            betpawa_event_id="1", home_team="A", away_team="B",
+            competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 15, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="1")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        )
+        assert event.late_reason is None
+        assert event.live_minute is None
+
+    def test_tracked_event_late_reason_set(self):
+        from live_coverage_bot.models.events import TrackedEvent, EventStatus
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        event = TrackedEvent(
+            betpawa_event_id="1", home_team="A", away_team="B",
+            competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 15, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="1")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+            late_reason="COVERAGE_LATE",
+            live_minute=23,
+        )
+        assert event.late_reason == "COVERAGE_LATE"
+        assert event.live_minute == 23
+
+    def test_transition_result_live_minute(self):
+        from live_coverage_bot.models.events import TransitionResult, EventStatus, TrackedEvent
+        from live_coverage_bot.clients.models import ProviderID, ProviderType
+        from datetime import UTC, datetime
+
+        event = TrackedEvent(
+            betpawa_event_id="1", home_team="A", away_team="B",
+            competition="Test",
+            scheduled_kickoff=datetime(2026, 4, 15, 15, 0, tzinfo=UTC),
+            status=EventStatus.PREMATCH,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="1")],
+            first_seen_prematch=datetime(2026, 4, 15, 12, 0, tzinfo=UTC),
+        )
+        result = TransitionResult(
+            event=event, old_status=EventStatus.LATE,
+            new_status=EventStatus.LIVE, live_minute=12,
+        )
+        assert result.live_minute == 12
+
+
 class TestStateChange:
     def test_create_state_change(self):
         change = StateChange(

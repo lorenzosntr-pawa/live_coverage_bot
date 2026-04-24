@@ -45,6 +45,8 @@ class TrackedEvent(BaseModel):
     slack_message_ts: str | None = None
     removed_at: datetime | None = None
     pre_removal_market_count: int | None = None
+    late_reason: str | None = None
+    live_minute: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -81,6 +83,7 @@ class TransitionResult(BaseModel):
     old_status: EventStatus
     new_status: EventStatus
     delay_sec: int | None = None
+    live_minute: int | None = None
     details: str = ""
 
 
