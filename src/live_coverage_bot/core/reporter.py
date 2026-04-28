@@ -134,21 +134,23 @@ class WeeklyReporter:
 
         problem_events = late + never_live
         if problem_events:
-            comp_counts: Counter[str] = Counter()
+            # Key by (competition, country) to distinguish leagues with similar names
+            comp_counts: Counter[tuple[str, str]] = Counter()
             for e in problem_events:
-                comp_counts[e.competition] += 1
+                comp_counts[(e.competition, e.country or "")] += 1
 
             lines.append("")
             lines.append("Top competitions with most issues:")
-            for i, (comp, count) in enumerate(comp_counts.most_common(5), 1):
-                comp_late = sum(1 for e in late if e.competition == comp)
-                comp_never = sum(1 for e in never_live if e.competition == comp)
+            for i, ((comp, country), count) in enumerate(comp_counts.most_common(5), 1):
+                comp_late = sum(1 for e in late if e.competition == comp and (e.country or "") == country)
+                comp_never = sum(1 for e in never_live if e.competition == comp and (e.country or "") == country)
                 parts = []
                 if comp_late:
                     parts.append(f"{comp_late} late")
                 if comp_never:
                     parts.append(f"{comp_never} never live")
-                lines.append(f"  {i}. {comp} \u2014 {', '.join(parts)}")
+                label = f"{comp} ({country})" if country else comp
+                lines.append(f"  {i}. {label} \u2014 {', '.join(parts)}")
 
         return "\n".join(lines)
 

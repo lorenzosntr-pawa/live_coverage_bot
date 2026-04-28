@@ -8,6 +8,7 @@ from datetime import datetime
 
 from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
+from live_coverage_bot.models.events import EventStatus, TrackedEvent
 from live_coverage_bot.models.markets import MarketComparison
 
 logger = logging.getLogger(__name__)
@@ -146,5 +147,85 @@ class MarketReporter:
             lines.append("Most frequently dropped markets:")
             for name, count in drop_count.most_common(5):
                 lines.append(f"  {name}: dropped in {count} events")
+
+        return "\n".join(lines)
+
+    async def generate_top_leagues_block(
+        self,
+        start: datetime,
+        end: datetime,
+        alert_competition_ids: list[str],
+        on_time_threshold_seconds: int = 300,
+    ) -> str:
+        """Return a per-league breakdown for top leagues in the weekly report."""
+        if not alert_competition_ids:
+            return ""
+
+        all_events = await self._events.get_events_in_date_range(start, end)
+        top_ids = set(alert_competition_ids)
+        top_events = [e for e in all_events if e.competition_id in top_ids]
+
+        if not top_events:
+            return "\u2500\u2500\u2500 Top Leagues \u2500\u2500\u2500\n\nNo events for top leagues in this period."
+
+        # Group events by (competition, country) for display
+        leagues: dict[tuple[str, str], list[TrackedEvent]] = {}
+        for e in top_events:
+            key = (e.competition, e.country or "")
+            leagues.setdefault(key, []).append(e)
+
+        # Build per-league market retention map: event_id → best retention_pct
+        retention_map: dict[int, float] = {}
+        for e in top_events:
+            if e.id is None:
+                continue
+            best = await self._markets.get_best_comparison_for_event(e.id)
+            if best:
+                retention_map[e.id] = best.retention_pct
+
+        lines = ["\u2500\u2500\u2500 Top Leagues \u2500\u2500\u2500", ""]
+
+        # Sort leagues by total events descending
+        for (comp, country), events in sorted(
+            leagues.items(), key=lambda x: len(x[1]), reverse=True
+        ):
+            total = len(events)
+            monitored = [e for e in events if e.status != EventStatus.UNMONITORED]
+            on_time = sum(
+                1 for e in monitored
+                if e.status == EventStatus.LIVE
+                and (e.transition_delay_sec or 0) < on_time_threshold_seconds
+            )
+            late = sum(
+                1 for e in monitored
+                if e.status == EventStatus.LIVE
+                and (e.transition_delay_sec or 0) >= on_time_threshold_seconds
+            )
+            never_live = sum(1 for e in monitored if e.status == EventStatus.NEVER_LIVE)
+
+            delays = [
+                e.transition_delay_sec
+                for e in monitored
+                if e.status == EventStatus.LIVE
+                and (e.transition_delay_sec or 0) >= on_time_threshold_seconds
+                and e.transition_delay_sec is not None
+            ]
+            avg_delay_str = f"{sum(delays) / len(delays) / 60:.1f}min" if delays else "n/a"
+
+            retentions = [
+                retention_map[e.id]
+                for e in events
+                if e.id is not None and e.id in retention_map
+            ]
+            retention_str = f"{sum(retentions) / len(retentions):.0f}%" if retentions else "n/a"
+
+            on_time_pct = f"{on_time / len(monitored) * 100:.0f}%" if monitored else "0%"
+            label = f"{comp} ({country})" if country else comp
+
+            lines.append(
+                f"  {label}: {total} events | {on_time_pct} on time | "
+                f"{late} late, {never_live} never live | "
+                f"avg delay {avg_delay_str} | {retention_str} retention"
+            )
 
         return "\n".join(lines)

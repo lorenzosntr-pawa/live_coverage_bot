@@ -569,8 +569,16 @@ class MonitoringLoop:
             # Lifecycle summary (existing)
             summary = await reporter.generate_slack_summary(start, end)
 
-            # Markets summary (new)
+            # Top leagues + markets summary
             if self._settings.markets.enabled:
+                top_leagues_block = await market_reporter.generate_top_leagues_block(
+                    start, end,
+                    alert_competition_ids=self._settings.markets.alert_competition_ids,
+                    on_time_threshold_seconds=self._settings.thresholds.on_time_threshold_seconds,
+                )
+                if top_leagues_block:
+                    summary = summary + "\n\n" + top_leagues_block
+
                 markets_block = await market_reporter.generate_markets_summary_block(
                     start, end
                 )
