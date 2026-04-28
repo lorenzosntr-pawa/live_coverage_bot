@@ -23,6 +23,7 @@ from live_coverage_bot.config.models import (
 from live_coverage_bot.core.loop import MonitoringLoop
 from live_coverage_bot.core.reporter import WeeklyReporter
 from live_coverage_bot.db.connection import Database
+from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
 from live_coverage_bot.models.events import EventStatus
 
@@ -43,9 +44,11 @@ def settings():
 class TestFullLifecycle:
     async def test_prematch_late_live_cycle(self, db, settings):
         repo = EventRepository(db)
+        market_repo = MarketRepository(db)
         loop = MonitoringLoop(settings)
         loop._db = db
         loop._repo = repo
+        loop._market_repo = market_repo
 
         from live_coverage_bot.core.tracker import EventLifecycleTracker
         loop._tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90)

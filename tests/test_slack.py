@@ -1,7 +1,7 @@
 """Tests for Slack Web API client."""
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -71,9 +71,8 @@ class TestSlackMessageFormatting:
 class TestSlackApiCalls:
     async def test_post_alert_returns_ts(self, slack_config, sample_event):
         client = SlackClient(slack_config)
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"ok": True, "ts": "1234567890.123456"}
-        mock_response.raise_for_status = AsyncMock()
 
         with patch.object(client._client, "post", return_value=mock_response) as mock_post:
             ts = await client.post_alert(sample_event, datetime.now(tz=UTC))
@@ -84,9 +83,8 @@ class TestSlackApiCalls:
 
     async def test_post_alert_raises_on_not_ok(self, slack_config, sample_event):
         client = SlackClient(slack_config)
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"ok": False, "error": "channel_not_found"}
-        mock_response.raise_for_status = AsyncMock()
 
         with patch.object(client._client, "post", return_value=mock_response):
             with pytest.raises(SlackError, match="channel_not_found"):
@@ -94,9 +92,8 @@ class TestSlackApiCalls:
 
     async def test_update_message(self, slack_config, sample_event):
         client = SlackClient(slack_config)
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"ok": True}
-        mock_response.raise_for_status = AsyncMock()
 
         with patch.object(client._client, "post", return_value=mock_response) as mock_post:
             await client.update_message("1234.5678", sample_event)
@@ -105,9 +102,8 @@ class TestSlackApiCalls:
 
     async def test_post_thread_reply(self, slack_config):
         client = SlackClient(slack_config)
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"ok": True}
-        mock_response.raise_for_status = AsyncMock()
 
         with patch.object(client._client, "post", return_value=mock_response) as mock_post:
             await client.post_thread_reply("1234.5678", "test reply text")
@@ -196,9 +192,8 @@ class TestSlackMarketMessages:
         from live_coverage_bot.clients.slack import SlackClient
 
         client = SlackClient(slack_config)
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"ok": True}
-        mock_response.raise_for_status = AsyncMock()
 
         with patch.object(client._client, "post", return_value=mock_response) as mock_post:
             await client.post_market_recap("1234.5678", "recap text")
@@ -209,9 +204,8 @@ class TestSlackMarketMessages:
         from live_coverage_bot.clients.slack import SlackClient
 
         client = SlackClient(slack_config)
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"ok": True, "ts": "9999.0000"}
-        mock_response.raise_for_status = AsyncMock()
 
         with patch.object(client._client, "post", return_value=mock_response):
             ts = await client.post_market_anomaly_alert(sample_event, "parent text")

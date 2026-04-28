@@ -122,7 +122,9 @@ class TestCompareSnapshots:
         )
 
         cmp = compare_snapshots(pre, live, cfg, now=datetime(2026, 4, 15, 15, 1, tzinfo=UTC))
-        assert cmp.retention_pct == 25.0
+        # 3 unique market types in prematch (O/U 2.5 and 3.5 share market_type_id),
+        # 1 kept → 33.33%
+        assert cmp.retention_pct == 33.33
         assert cmp.triggered_alert
 
     def test_big_odds_shift(self):
