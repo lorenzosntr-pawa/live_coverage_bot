@@ -1,8 +1,7 @@
 """Tests for the monitoring loop."""
 
-from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from pathlib import Path
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -18,7 +17,6 @@ from live_coverage_bot.config.models import (
     ThresholdConfig,
 )
 from live_coverage_bot.core.loop import MonitoringLoop
-from live_coverage_bot.db.connection import Database
 from live_coverage_bot.db.market_repository import MarketRepository
 from live_coverage_bot.db.repository import EventRepository
 from live_coverage_bot.models.events import EventStatus
@@ -199,10 +197,15 @@ class TestSplitWeeklyReport:
             mock_reporter_inst.generate_slack_summary = AsyncMock(return_value="coverage summary")
             mock_reporter_inst.generate_csv = AsyncMock(return_value="csv,data\n1,2\n")
             MockReporter.return_value = mock_reporter_inst
-            MockReporter.WEEKDAY_MAP = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
+            MockReporter.WEEKDAY_MAP = {
+                "monday": 0, "tuesday": 1, "wednesday": 2,
+                "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
+            }
 
             mock_market_inst = AsyncMock()
-            mock_market_inst.generate_top_leagues_block = AsyncMock(return_value="top leagues block")
+            mock_market_inst.generate_top_leagues_block = AsyncMock(
+                return_value="top leagues block",
+            )
             mock_market_inst.generate_minimal_summary = AsyncMock(return_value="market summary")
             mock_market_inst.generate_aggregate_csv = AsyncMock(return_value="market,csv\na,b\n")
             mock_market_inst.generate_per_event_csv = AsyncMock(return_value="per,event\n")
@@ -254,7 +257,10 @@ class TestSplitWeeklyReport:
             mock_reporter_inst.generate_slack_summary = AsyncMock(return_value="cov")
             mock_reporter_inst.generate_csv = AsyncMock(return_value="csv_content")
             MockReporter.return_value = mock_reporter_inst
-            MockReporter.WEEKDAY_MAP = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
+            MockReporter.WEEKDAY_MAP = {
+                "monday": 0, "tuesday": 1, "wednesday": 2,
+                "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
+            }
 
             mock_market_inst = AsyncMock()
             mock_market_inst.generate_top_leagues_block = AsyncMock(return_value="")
