@@ -565,15 +565,20 @@ class MonitoringLoop:
         if self._last_report_date and self._last_report_date.date() == now.date():
             return
 
-        reporter = WeeklyReporter(self._repo, week_starts=cfg.week_starts, on_time_threshold_seconds=self._settings.thresholds.on_time_threshold_seconds)
+        reporter = WeeklyReporter(
+            self._repo,
+            week_starts=cfg.week_starts,
+            on_time_threshold_seconds=self._settings.thresholds.on_time_threshold_seconds,
+        )
         market_reporter = MarketReporter(self._repo, self._market_repo)
         start, end = reporter.compute_report_period(now)
+        summary_channel = slack._config.summary_channel_id or slack._config.channel_id
+        date_str = now.strftime("%Y-%m-%d")
 
         try:
-            # Lifecycle summary (existing)
+            # --- Message 1: Live Coverage Report ---
             summary = await reporter.generate_slack_summary(start, end)
 
-            # Top leagues + markets summary
             if self._settings.markets.enabled:
                 top_leagues_block = await market_reporter.generate_top_leagues_block(
                     start, end,
@@ -583,29 +588,43 @@ class MonitoringLoop:
                 if top_leagues_block:
                     summary = summary + "\n\n" + top_leagues_block
 
-                markets_block = await market_reporter.generate_markets_summary_block(
-                    start, end
-                )
-                summary = summary + "\n\n" + markets_block
+            coverage_ts = await slack.post_summary(summary)
 
-            await slack.post_summary(summary)
-
-            # Lifecycle CSV (existing)
+            # Coverage CSV
             csv_content = await reporter.generate_csv(start, end)
             output_dir = Path(cfg.output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
-            csv_path = output_dir / f"weekly-{now.strftime('%Y-%m-%d')}.csv"
+            csv_path = output_dir / f"weekly-{date_str}.csv"
             csv_path.write_text(csv_content, encoding="utf-8")
 
-            # Markets aggregate CSV + per-event CSVs (new)
+            await slack.upload_file(
+                content=csv_content,
+                filename=f"weekly-{date_str}.csv",
+                channel=summary_channel,
+                thread_ts=coverage_ts,
+            )
+
+            # --- Message 2: Market Retention Report ---
             if self._settings.markets.enabled:
-                market_csv = await market_reporter.generate_aggregate_csv(start, end)
-                market_csv_path = (
-                    output_dir / f"weekly-markets-{now.strftime('%Y-%m-%d')}.csv"
+                retention_threshold = self._settings.markets.alert_thresholds.retention_below_pct
+                market_summary = await market_reporter.generate_minimal_summary(
+                    start, end, retention_threshold=retention_threshold,
                 )
+                market_ts = await slack.post_summary(market_summary)
+
+                market_csv = await market_reporter.generate_aggregate_csv(start, end)
+                market_csv_path = output_dir / f"weekly-markets-{date_str}.csv"
                 market_csv_path.write_text(market_csv, encoding="utf-8")
 
-                event_dir = output_dir / "events" / now.strftime("%Y-%m-%d")
+                await slack.upload_file(
+                    content=market_csv,
+                    filename=f"weekly-markets-{date_str}.csv",
+                    channel=summary_channel,
+                    thread_ts=market_ts,
+                )
+
+                # Per-event CSVs (disk only)
+                event_dir = output_dir / "events" / date_str
                 event_dir.mkdir(parents=True, exist_ok=True)
                 comparisons = await self._market_repo.get_comparisons_in_date_range(
                     start, end
@@ -617,15 +636,19 @@ class MonitoringLoop:
                     event = await self._repo.get_by_id(cmp.event_id)
                     if event is None:
                         continue
-                    safe_home = "".join(c if c.isalnum() else "_" for c in event.home_team)
-                    safe_away = "".join(c if c.isalnum() else "_" for c in event.away_team)
+                    safe_home = "".join(
+                        c if c.isalnum() else "_" for c in event.home_team
+                    )
+                    safe_away = "".join(
+                        c if c.isalnum() else "_" for c in event.away_team
+                    )
                     filename = (
                         f"{event.betpawa_event_id}_{safe_home}_vs_{safe_away}.csv"
                     )
                     (event_dir / filename).write_text(per_event_csv, encoding="utf-8")
 
             self._last_report_date = now
-            logger.info("Weekly report generated (lifecycle + markets)")
+            logger.info("Weekly report generated (coverage + market retention)")
 
         except Exception as e:
             logger.error("Failed to generate weekly report: %s", e)
