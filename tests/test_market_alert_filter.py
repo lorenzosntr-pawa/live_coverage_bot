@@ -181,3 +181,49 @@ class TestMarketAlertLeagueFilter:
 
             # Slack handler called — empty whitelist means alert everything
             mock_initial.assert_called_once()
+
+    async def test_skips_slack_when_alerts_disabled(self, db):
+        """Comparison saved to DB but Slack alert suppressed when alerts_enabled=False."""
+        settings = _make_settings(
+            alerts_enabled=False,
+            alert_competition_ids=["11965"],
+        )
+        repo = EventRepository(db)
+        market_repo = MarketRepository(db)
+
+        loop = MonitoringLoop(settings)
+        loop._db = db
+        loop._repo = repo
+        loop._market_repo = market_repo
+
+        event = await _insert_test_event(repo, competition_id="11965")
+
+        mock_slack = AsyncMock()
+        now = datetime(2026, 4, 15, 15, 1, tzinfo=UTC)
+
+        with patch.object(loop, "_handle_initial_comparison", new_callable=AsyncMock) as mock_initial, \
+             patch.object(loop, "_handle_followup_comparison", new_callable=AsyncMock) as mock_followup, \
+             patch("live_coverage_bot.core.loop.compare_snapshots") as mock_compare, \
+             patch.object(market_repo, "get_latest_prematch_snapshot", new_callable=AsyncMock) as mock_pre, \
+             patch.object(market_repo, "get_snapshots_for_event", new_callable=AsyncMock) as mock_snaps, \
+             patch.object(market_repo, "insert_comparison", new_callable=AsyncMock):
+
+            mock_pre_snap = AsyncMock()
+            mock_pre_snap.total_market_count = 100
+            mock_pre.return_value = mock_pre_snap
+
+            mock_live_snap = AsyncMock()
+            mock_live_snap.phase = SnapshotPhase.LIVE_0
+            mock_snaps.return_value = [mock_live_snap]
+
+            mock_cmp = AsyncMock()
+            mock_cmp.snapshot_phase = None
+            mock_compare.return_value = mock_cmp
+
+            await loop._handle_market_comparison(mock_slack, event.id, SnapshotPhase.LIVE_0, now)
+
+            # Comparison was saved to DB
+            market_repo.insert_comparison.assert_called_once()
+            # But Slack handlers were NOT called
+            mock_initial.assert_not_called()
+            mock_followup.assert_not_called()

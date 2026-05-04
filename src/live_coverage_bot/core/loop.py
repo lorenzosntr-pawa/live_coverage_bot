@@ -434,6 +434,10 @@ class MonitoringLoop:
             logger.warning("Market comparison insert failed for event %d: %s", event_id, e)
             return
 
+        # Gate: skip Slack alerts if market alerts are disabled
+        if not self._settings.markets.alerts_enabled:
+            return
+
         event = await self._repo.get_by_id(event_id)
         if event is None:
             return
