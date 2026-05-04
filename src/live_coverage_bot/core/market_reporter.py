@@ -88,6 +88,39 @@ class MarketReporter:
             })
         return output.getvalue()
 
+    async def generate_minimal_summary(
+        self, start: datetime, end: datetime, retention_threshold: float
+    ) -> str:
+        """Return a minimal market retention summary for the weekly Slack message."""
+        all_comparisons = await self._markets.get_comparisons_in_date_range(start, end)
+
+        # Deduplicate: one comparison per event, prefer LIVE_5 > LIVE_2 > LIVE_0
+        seen_events: set[int] = set()
+        comparisons: list[MarketComparison] = []
+        for cmp in all_comparisons:
+            if cmp.event_id in seen_events:
+                continue
+            best = await self._markets.get_best_comparison_for_event(cmp.event_id)
+            if best:
+                comparisons.append(best)
+                seen_events.add(cmp.event_id)
+
+        if not comparisons:
+            return "\U0001f4ca Market Retention Report\n\nNo market comparisons in this period."
+
+        avg_retention = sum(c.retention_pct for c in comparisons) / len(comparisons)
+        significant_drops = sum(
+            1 for c in comparisons if c.retention_pct < retention_threshold
+        )
+
+        return "\n".join([
+            "\U0001f4ca Market Retention Report",
+            "",
+            f"Events with market snapshots: {len(comparisons)}",
+            f"Avg market retention: {avg_retention:.0f}%",
+            f"Significant drops (retention <{retention_threshold:.0f}%): {significant_drops}",
+        ])
+
     async def generate_markets_summary_block(
         self, start: datetime, end: datetime
     ) -> str:

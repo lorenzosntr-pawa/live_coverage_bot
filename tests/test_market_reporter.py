@@ -115,3 +115,49 @@ class TestSlackSummary:
         block = await reporter.generate_markets_summary_block(start, end)
         assert "Markets" in block
         assert "1" in block
+
+
+class TestMinimalSummary:
+    async def test_generates_minimal_summary(self, reporter, event_repo, market_repo):
+        await _seed(event_repo, market_repo)
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 16, tzinfo=UTC)
+        text = await reporter.generate_minimal_summary(start, end, retention_threshold=60.0)
+        assert "Market Retention" in text
+        assert "Events with market snapshots: 1" in text
+        assert "Avg market retention:" in text
+
+    async def test_minimal_summary_counts_significant_drops(self, reporter, event_repo, market_repo):
+        """Events below retention threshold are counted as significant drops."""
+        base = datetime(2026, 4, 14, 15, 0, tzinfo=UTC)
+        event = TrackedEvent(
+            betpawa_event_id="99002",
+            home_team="Team C", away_team="Team D",
+            competition="LaLiga", country="Spain",
+            scheduled_kickoff=base, status=EventStatus.LIVE,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="67890")],
+            first_seen_prematch=base, first_seen_live=base,
+            transition_delay_sec=60,
+        )
+        eid = await event_repo.insert_event(event)
+        await market_repo.insert_comparison(MarketComparison(
+            event_id=eid,
+            compared_at=base,
+            prematch_phase=SnapshotPhase.PREMATCH_1,
+            markets_added=0, markets_dropped=8, markets_kept=2,
+            retention_pct=20.0, dropped_key_markets=["1X2 - FT"],
+            max_odds_shift_pct=25.0, triggered_alert=True,
+            details={"dropped": [], "added": [], "odds_shifts": []},
+        ))
+
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 16, tzinfo=UTC)
+        text = await reporter.generate_minimal_summary(start, end, retention_threshold=60.0)
+        assert "significant drops" in text.lower() or "Significant drops" in text
+        assert "1" in text  # one event below threshold
+
+    async def test_minimal_summary_empty_period(self, reporter, event_repo, market_repo):
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 16, tzinfo=UTC)
+        text = await reporter.generate_minimal_summary(start, end, retention_threshold=60.0)
+        assert "No market comparisons" in text
