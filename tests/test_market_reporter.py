@@ -161,3 +161,41 @@ class TestMinimalSummary:
         end = datetime(2026, 4, 16, tzinfo=UTC)
         text = await reporter.generate_minimal_summary(start, end, retention_threshold=60.0)
         assert "No market comparisons" in text
+
+
+class TestTopLeaguesNoRetention:
+    async def test_top_leagues_excludes_retention(self, reporter, event_repo, market_repo):
+        """Top leagues block should NOT include market retention %."""
+        base = datetime(2026, 4, 14, 15, 0, tzinfo=UTC)
+        event = TrackedEvent(
+            betpawa_event_id="99010",
+            home_team="Team X", away_team="Team Y",
+            competition="EPL", competition_id="11965",
+            country="England",
+            scheduled_kickoff=base, status=EventStatus.LIVE,
+            provider_ids=[ProviderID(type=ProviderType.SPORTRADAR, id="111")],
+            first_seen_prematch=base, first_seen_live=base,
+            transition_delay_sec=60,
+        )
+        eid = await event_repo.insert_event(event)
+
+        # Insert a comparison so retention data exists
+        await market_repo.insert_comparison(MarketComparison(
+            event_id=eid,
+            compared_at=base,
+            prematch_phase=SnapshotPhase.PREMATCH_1,
+            markets_added=0, markets_dropped=2, markets_kept=8,
+            retention_pct=80.0, dropped_key_markets=[],
+            max_odds_shift_pct=0.0, triggered_alert=False,
+            details={"dropped": [], "added": [], "odds_shifts": []},
+        ))
+
+        start = datetime(2026, 4, 13, tzinfo=UTC)
+        end = datetime(2026, 4, 16, tzinfo=UTC)
+        block = await reporter.generate_top_leagues_block(
+            start, end,
+            alert_competition_ids=["11965"],
+            on_time_threshold_seconds=300,
+        )
+        assert "EPL" in block
+        assert "retention" not in block.lower()

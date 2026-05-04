@@ -207,15 +207,6 @@ class MarketReporter:
             key = (e.competition, e.country or "")
             leagues.setdefault(key, []).append(e)
 
-        # Build per-league market retention map: event_id → best retention_pct
-        retention_map: dict[int, float] = {}
-        for e in top_events:
-            if e.id is None:
-                continue
-            best = await self._markets.get_best_comparison_for_event(e.id)
-            if best:
-                retention_map[e.id] = best.retention_pct
-
         lines = ["\u2500\u2500\u2500 Top Leagues \u2500\u2500\u2500", ""]
 
         # Sort leagues by total events descending
@@ -245,20 +236,13 @@ class MarketReporter:
             ]
             avg_delay_str = f"{sum(delays) / len(delays) / 60:.1f}min" if delays else "n/a"
 
-            retentions = [
-                retention_map[e.id]
-                for e in events
-                if e.id is not None and e.id in retention_map
-            ]
-            retention_str = f"{sum(retentions) / len(retentions):.0f}%" if retentions else "n/a"
-
             on_time_pct = f"{on_time / len(monitored) * 100:.0f}%" if monitored else "0%"
             label = f"{comp} ({country})" if country else comp
 
             lines.append(
                 f"  {label}: {total} events | {on_time_pct} on time | "
                 f"{late} late, {never_live} never live | "
-                f"avg delay {avg_delay_str} | {retention_str} retention"
+                f"avg delay {avg_delay_str}"
             )
 
         return "\n".join(lines)
