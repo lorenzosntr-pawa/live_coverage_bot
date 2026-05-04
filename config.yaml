@@ -33,6 +33,7 @@ reporting:
 
 markets:
   enabled: true
+  alerts_enabled: false
   alert_competition_ids:
     - "11965"   # Premier League (England)
     - "12145"   # FA Cup (England)

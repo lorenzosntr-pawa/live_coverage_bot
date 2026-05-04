@@ -109,6 +109,16 @@ class TestMarketsConfig:
         config = MarketsConfig(alert_competition_ids=["11965", "12097"])
         assert config.alert_competition_ids == ["11965", "12097"]
 
+    def test_alerts_enabled_defaults_true(self):
+        from live_coverage_bot.config.models import MarketsConfig
+        config = MarketsConfig()
+        assert config.alerts_enabled is True
+
+    def test_alerts_enabled_can_be_disabled(self):
+        from live_coverage_bot.config.models import MarketsConfig
+        config = MarketsConfig(alerts_enabled=False)
+        assert config.alerts_enabled is False
+
 
 class TestNewMarketConfig:
     def test_default_live_snapshot_offsets(self):
