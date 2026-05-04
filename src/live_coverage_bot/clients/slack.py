@@ -240,8 +240,8 @@ class SlackClient:
         if not data.get("ok"):
             raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
 
-    async def post_summary(self, text: str) -> None:
-        """Post a weekly summary message to the summary channel."""
+    async def post_summary(self, text: str) -> str:
+        """Post a weekly summary message to the summary channel. Returns ts."""
         channel = self._config.summary_channel_id or self._config.channel_id
         response = await self._client.post(
             "/chat.postMessage",
@@ -251,6 +251,54 @@ class SlackClient:
         data = response.json()
         if not data.get("ok"):
             raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+        return data["ts"]
+
+    async def upload_file(
+        self,
+        content: str,
+        filename: str,
+        channel: str,
+        thread_ts: str | None = None,
+    ) -> None:
+        """Upload a file to Slack using the v2 upload API."""
+        content_bytes = content.encode("utf-8")
+
+        # Step 1: Get upload URL
+        response = await self._client.post(
+            "/files.getUploadURLExternal",
+            json={"filename": filename, "length": len(content_bytes)},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack upload URL error: {data.get('error', 'unknown')}")
+
+        upload_url = data["upload_url"]
+        file_id = data["file_id"]
+
+        # Step 2: Upload file content
+        await self._client.put(
+            upload_url,
+            content=content_bytes,
+            headers={"Content-Type": "text/csv"},
+        )
+
+        # Step 3: Complete upload
+        complete_body: dict = {
+            "files": [{"id": file_id, "title": filename}],
+            "channel_id": channel,
+        }
+        if thread_ts:
+            complete_body["thread_ts"] = thread_ts
+
+        response = await self._client.post(
+            "/files.completeUploadExternal",
+            json=complete_body,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack upload complete error: {data.get('error', 'unknown')}")
 
     def format_market_recap(
         self,

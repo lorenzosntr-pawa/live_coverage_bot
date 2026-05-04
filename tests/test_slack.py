@@ -110,6 +110,15 @@ class TestSlackApiCalls:
             call_kwargs = mock_post.call_args[1]
             assert call_kwargs["json"]["thread_ts"] == "1234.5678"
 
+    async def test_post_summary_returns_ts(self, slack_config):
+        client = SlackClient(slack_config)
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True, "ts": "1111.2222"}
+
+        with patch.object(client._client, "post", return_value=mock_response):
+            ts = await client.post_summary("weekly report text")
+            assert ts == "1111.2222"
+
 
 class TestSlackMarketMessages:
     def test_format_market_recap(self, slack_config, sample_event):
@@ -402,6 +411,63 @@ class TestLateReasonFormatting:
         assert "12:00" in text
         assert "13:00" in text
         assert "Arsenal vs Chelsea" in text
+
+
+class TestSlackFileUpload:
+    async def test_upload_file_calls_v2_api(self, slack_config):
+        client = SlackClient(slack_config)
+
+        # Step 1: getUploadURLExternal
+        url_response = MagicMock()
+        url_response.json.return_value = {
+            "ok": True,
+            "upload_url": "https://files.slack.com/upload/v1/abc123",
+            "file_id": "F123ABC",
+        }
+        # Step 2: PUT to upload URL
+        upload_response = MagicMock()
+        upload_response.status_code = 200
+        # Step 3: completeUploadExternal
+        complete_response = MagicMock()
+        complete_response.json.return_value = {"ok": True}
+
+        with patch.object(
+            client._client, "post",
+            side_effect=[url_response, complete_response],
+        ) as mock_post, patch.object(
+            client._client, "put",
+            return_value=upload_response,
+        ):
+            await client.upload_file(
+                content="col1,col2\na,b\n",
+                filename="test.csv",
+                channel="C12345",
+                thread_ts="1111.2222",
+            )
+
+        # Verify getUploadURLExternal was called
+        first_call = mock_post.call_args_list[0]
+        assert "/files.getUploadURLExternal" in first_call[0][0]
+
+        # Verify completeUploadExternal was called with file_id and thread
+        second_call = mock_post.call_args_list[1]
+        assert "/files.completeUploadExternal" in second_call[0][0]
+        body = second_call[1]["json"]
+        assert body["files"] == [{"id": "F123ABC", "title": "test.csv"}]
+        assert body["thread_ts"] == "1111.2222"
+
+    async def test_upload_file_raises_on_url_error(self, slack_config):
+        client = SlackClient(slack_config)
+        url_response = MagicMock()
+        url_response.json.return_value = {"ok": False, "error": "not_authed"}
+
+        with patch.object(client._client, "post", return_value=url_response):
+            with pytest.raises(SlackError, match="not_authed"):
+                await client.upload_file(
+                    content="data",
+                    filename="f.csv",
+                    channel="C12345",
+                )
 
 
 class TestEventHeaderHelper:
