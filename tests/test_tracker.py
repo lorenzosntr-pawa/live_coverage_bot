@@ -260,6 +260,73 @@ class TestDetectRemoved:
         )
         assert len(removed) == 0
 
+    async def test_full_scan_silent_removal_then_confirmed(self, db):
+        """Full scan marks removed silently; alert fires when entering monitoring window."""
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90)
+        kickoff = datetime(2026, 4, 20, 15, 0, tzinfo=UTC)  # 5 days away
+        now_register = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [{"betpawa_event_id": "99060", "home_team": "TeamA", "away_team": "TeamB", "competition": "Test", "country": "Test", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}],
+            now=now_register,
+        )
+
+        # Full scan: event missing (lookahead_hours=0) — silently marked REMOVED
+        full_scan_time = datetime(2026, 4, 16, 12, 0, tzinfo=UTC)
+        removed = await tracker.detect_removed(
+            current_prematch_ids=set(), now=full_scan_time, lookahead_hours=0
+        )
+        assert len(removed) == 1
+        event = await repo.get_by_betpawa_id("99060")
+        assert event.status == EventStatus.REMOVED
+        assert event.slack_message_ts is None  # No alert yet
+
+        # Not yet in monitoring window (still 2.5 days away) — no confirmed removals
+        confirmed = await tracker.get_confirmed_removals(
+            current_prematch_ids=set(), now=full_scan_time, lookahead_hours=3
+        )
+        assert len(confirmed) == 0
+
+        # Time advances — event now within 3h of kickoff, still absent → confirmed
+        near_kickoff = datetime(2026, 4, 20, 13, 0, tzinfo=UTC)
+        confirmed = await tracker.get_confirmed_removals(
+            current_prematch_ids=set(), now=near_kickoff, lookahead_hours=3
+        )
+        assert len(confirmed) == 1
+        assert confirmed[0].betpawa_event_id == "99060"
+
+    async def test_full_scan_removal_then_recovery(self, db):
+        """Event marked removed by full scan recovers on next full scan — no alert."""
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90)
+        kickoff = datetime(2026, 4, 20, 15, 0, tzinfo=UTC)
+        now_register = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [{"betpawa_event_id": "99061", "home_team": "TeamC", "away_team": "TeamD", "competition": "Test", "country": "Test", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}],
+            now=now_register,
+        )
+
+        # Full scan 1: event missing → REMOVED
+        await tracker.detect_removed(
+            current_prematch_ids=set(), now=datetime(2026, 4, 16, 12, 0, tzinfo=UTC), lookahead_hours=0
+        )
+        event = await repo.get_by_betpawa_id("99061")
+        assert event.status == EventStatus.REMOVED
+
+        # Full scan 2: event is back → recovered to PREMATCH
+        recoveries = await tracker.detect_prematch_recovery(
+            current_prematch_ids={"99061"}, now=datetime(2026, 4, 16, 12, 30, tzinfo=UTC)
+        )
+        assert len(recoveries) == 1
+        event = await repo.get_by_betpawa_id("99061")
+        assert event.status == EventStatus.PREMATCH
+
+        # Near kickoff — event is PREMATCH again, no confirmed removals
+        confirmed = await tracker.get_confirmed_removals(
+            current_prematch_ids={"99061"}, now=datetime(2026, 4, 20, 13, 0, tzinfo=UTC), lookahead_hours=3
+        )
+        assert len(confirmed) == 0
+
 
 class TestEnhancedRemoval:
     async def test_detect_removed_records_removed_at(self, db):

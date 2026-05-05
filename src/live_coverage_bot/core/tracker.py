@@ -187,6 +187,41 @@ class EventLifecycleTracker:
 
         return removed
 
+    async def get_confirmed_removals(
+        self,
+        current_prematch_ids: set[str],
+        now: datetime,
+        lookahead_hours: int = 3,
+    ) -> list[TrackedEvent]:
+        """Find REMOVED events entering the monitoring window that are still absent.
+
+        These are events silently marked REMOVED by the full scan (far from
+        kickoff) that have now entered the regular lookahead window and are
+        confirmed missing — they never recovered. Returns events needing an alert.
+
+        Only returns events without a slack_message_ts (no alert posted yet).
+        """
+        from datetime import timedelta
+
+        lookback = now - timedelta(hours=24)
+        removed_events = await self._repo.get_recent_removed_events(lookback)
+        confirmed: list[TrackedEvent] = []
+
+        for event in removed_events:
+            # Already alerted — skip
+            if event.slack_message_ts is not None:
+                continue
+            # Not yet in the monitoring window — keep waiting
+            minutes_to_kickoff = (event.scheduled_kickoff - now).total_seconds() / 60
+            if minutes_to_kickoff > lookahead_hours * 60:
+                continue
+            # Still in prematch feed — shouldn't be REMOVED (recovery will handle)
+            if event.betpawa_event_id in current_prematch_ids:
+                continue
+            confirmed.append(event)
+
+        return confirmed
+
     async def detect_prematch_recovery(
         self,
         current_prematch_ids: set[str],

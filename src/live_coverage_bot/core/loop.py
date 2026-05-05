@@ -266,6 +266,25 @@ class MonitoringLoop:
             )
             for recovery in prematch_recoveries:
                 await self._handle_transition(slack, recovery, now)
+
+            # Confirm stale removals: REMOVED events (from full scan) entering
+            # the monitoring window that are still absent → fire alert now
+            stale_removed = await self._tracker.get_confirmed_removals(
+                current_prematch_ids, now=now,
+                lookahead_hours=self._settings.polling.prematch_lookahead_hours,
+            )
+            for event in stale_removed:
+                assert event.id is not None
+                details = (
+                    f"Confirmed removed — missing since "
+                    f"{event.removed_at.strftime('%b %d %H:%M') if event.removed_at else 'unknown'} UTC"
+                )
+                await self._handle_transition(slack, TransitionResult(
+                    event=event,
+                    old_status=EventStatus.PREMATCH,
+                    new_status=EventStatus.REMOVED,
+                    details=details,
+                ), now)
         taken = await snapshotter.run_cycle(
             now=now,
             live_transition_event_ids=live_transition_bp_ids,
@@ -277,10 +296,10 @@ class MonitoringLoop:
                 continue
             await self._handle_market_comparison(slack, event_id, phase, now)
 
-        # Full scan: fetch ALL prematch events periodically for early kickoff change
-        # detection and registration. Removal detection is NOT done here — it's
-        # unreliable at 30min intervals (API pagination gaps cause false positives).
-        # Events get proper removal detection when they enter the 3h window.
+        # Full scan: fetch ALL prematch events for kickoff change detection,
+        # early registration, and silent removal tracking. Removals are tracked
+        # silently (no alert) — the alert only fires when the event enters the
+        # regular monitoring window and is still missing (confirmed cancellation).
         full_scan_ratio = (
             self._settings.polling.full_scan_interval_seconds
             // self._settings.polling.live_interval_seconds
@@ -305,6 +324,21 @@ class MonitoringLoop:
                     await self._handle_transition(slack, t, now)
                 if full_scan_transitions:
                     logger.info("Full scan: %d transitions detected", len(full_scan_transitions))
+
+                # Silent removal tracking — no alerts, just state changes
+                full_prematch_ids = {e.event_id for e in all_upcoming}
+                full_removed = await self._tracker.detect_removed(
+                    full_prematch_ids, now=now, lookahead_hours=0,
+                )
+                if full_removed:
+                    logger.info("Full scan: %d events missing from feed", len(full_removed))
+
+                # Recover events that reappeared
+                full_recoveries = await self._tracker.detect_prematch_recovery(
+                    full_prematch_ids, now=now
+                )
+                if full_recoveries:
+                    logger.info("Full scan: %d events recovered", len(full_recoveries))
             except BetPawaError as e:
                 logger.warning("Full scan fetch failed: %s", e)
 
