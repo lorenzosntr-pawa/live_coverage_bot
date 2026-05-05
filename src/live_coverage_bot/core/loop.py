@@ -278,7 +278,9 @@ class MonitoringLoop:
             await self._handle_market_comparison(slack, event_id, phase, now)
 
         # Full scan: fetch ALL prematch events periodically for early kickoff change
-        # and cancellation detection beyond the regular lookahead window
+        # detection and registration. Removal detection is NOT done here — it's
+        # unreliable at 30min intervals (API pagination gaps cause false positives).
+        # Events get proper removal detection when they enter the 3h window.
         full_scan_ratio = (
             self._settings.polling.full_scan_interval_seconds
             // self._settings.polling.live_interval_seconds
@@ -303,27 +305,6 @@ class MonitoringLoop:
                     await self._handle_transition(slack, t, now)
                 if full_scan_transitions:
                     logger.info("Full scan: %d transitions detected", len(full_scan_transitions))
-
-                # Detect removals/recoveries across ALL registered events
-                full_prematch_ids = {e.event_id for e in all_upcoming}
-                full_removed = await self._tracker.detect_removed(
-                    full_prematch_ids, now=now, lookahead_hours=0,
-                )
-                for r in full_removed:
-                    await self._handle_transition(slack, TransitionResult(
-                        event=r.event,
-                        old_status=r.old_status,
-                        new_status=EventStatus.REMOVED,
-                        details=r.details,
-                    ), now)
-                if full_removed:
-                    logger.info("Full scan: %d events removed", len(full_removed))
-
-                full_recoveries = await self._tracker.detect_prematch_recovery(
-                    full_prematch_ids, now=now
-                )
-                for recovery in full_recoveries:
-                    await self._handle_transition(slack, recovery, now)
             except BetPawaError as e:
                 logger.warning("Full scan fetch failed: %s", e)
 
