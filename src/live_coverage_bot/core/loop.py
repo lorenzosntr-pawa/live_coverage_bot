@@ -33,6 +33,7 @@ class MonitoringLoop:
         self._market_repo: MarketRepository | None = None
         self._tracker: EventLifecycleTracker | None = None
         self._prematch_cycle_counter = 0
+        self._full_scan_cycle_counter = 0
         self._last_report_date: datetime | None = None
 
     async def run(self) -> None:
@@ -228,7 +229,10 @@ class MonitoringLoop:
         )
 
         if current_prematch_ids is not None:
-            removed = await self._tracker.detect_removed(current_prematch_ids, now=now)
+            removed = await self._tracker.detect_removed(
+                current_prematch_ids, now=now,
+                lookahead_hours=self._settings.polling.prematch_lookahead_hours,
+            )
             if removed:
                 logger.info("Detected %d removed prematch events", len(removed))
 
@@ -273,6 +277,56 @@ class MonitoringLoop:
                 continue
             await self._handle_market_comparison(slack, event_id, phase, now)
 
+        # Full scan: fetch ALL prematch events periodically for early kickoff change
+        # and cancellation detection beyond the regular lookahead window
+        full_scan_ratio = (
+            self._settings.polling.full_scan_interval_seconds
+            // self._settings.polling.live_interval_seconds
+        )
+        self._full_scan_cycle_counter += 1
+        if self._full_scan_cycle_counter >= full_scan_ratio:
+            self._full_scan_cycle_counter = 0
+            try:
+                all_upcoming = await betpawa.get_upcoming_events(hours_ahead=0)
+                full_feed = BetPawaClient.upcoming_to_tracker_feed(all_upcoming)
+                new_ids = await self._tracker.register_prematch_events(full_feed, now=now)
+                if new_ids:
+                    logger.info("Full scan: registered %d new prematch events", len(new_ids))
+
+                full_prematch_map = {e.event_id: e for e in all_upcoming}
+                full_scan_transitions = await self._tracker.check_transitions(
+                    live_betpawa_ids, now=now,
+                    live_events_map=live_events_map,
+                    prematch_events_map=full_prematch_map,
+                )
+                for t in full_scan_transitions:
+                    await self._handle_transition(slack, t, now)
+                if full_scan_transitions:
+                    logger.info("Full scan: %d transitions detected", len(full_scan_transitions))
+
+                # Detect removals/recoveries across ALL registered events
+                full_prematch_ids = {e.event_id for e in all_upcoming}
+                full_removed = await self._tracker.detect_removed(
+                    full_prematch_ids, now=now, lookahead_hours=0,
+                )
+                for r in full_removed:
+                    await self._handle_transition(slack, TransitionResult(
+                        event=r.event,
+                        old_status=r.old_status,
+                        new_status=EventStatus.REMOVED,
+                        details=r.details,
+                    ), now)
+                if full_removed:
+                    logger.info("Full scan: %d events removed", len(full_removed))
+
+                full_recoveries = await self._tracker.detect_prematch_recovery(
+                    full_prematch_ids, now=now
+                )
+                for recovery in full_recoveries:
+                    await self._handle_transition(slack, recovery, now)
+            except BetPawaError as e:
+                logger.warning("Full scan fetch failed: %s", e)
+
         # Cycle summary
         active = await self._repo.get_active_events()
         prematch_count = sum(1 for e in active if e.status == EventStatus.PREMATCH)
@@ -307,6 +361,28 @@ class MonitoringLoop:
                 logger.info(
                     "Alert sent: %s %s vs %s (LATE)",
                     refreshed.betpawa_event_id, refreshed.home_team, refreshed.away_team,
+                )
+
+            elif old_status == EventStatus.PREMATCH and new_status == EventStatus.PREMATCH:
+                # Postponed >24h while still in prematch — bets voided
+                old_kickoff = transition.event.scheduled_kickoff
+                new_kickoff = refreshed.scheduled_kickoff
+
+                reschedule_text = slack.format_reschedule_message(
+                    refreshed, old_kickoff, new_kickoff
+                )
+                if refreshed.slack_message_ts:
+                    await slack.update_message(refreshed.slack_message_ts, text=reschedule_text)
+                else:
+                    ts = await slack.post_message(text=reschedule_text)
+                    assert refreshed.id is not None
+                    await self._repo.update_slack_ts(refreshed.id, ts)
+                logger.info(
+                    "Postponed >24h: %s %s vs %s (%s -> %s)",
+                    refreshed.betpawa_event_id, refreshed.home_team,
+                    refreshed.away_team,
+                    old_kickoff.strftime("%Y-%m-%d %H:%M"),
+                    new_kickoff.strftime("%Y-%m-%d %H:%M"),
                 )
 
             elif old_status == EventStatus.LATE and new_status == EventStatus.PREMATCH:

@@ -69,6 +69,7 @@ class BetPawaClient:
 
         Args:
             hours_ahead: Only include events starting within this many hours.
+                         Pass 0 to fetch all upcoming events (no time cutoff).
 
         Returns:
             List of UpcomingEvent with full details and all provider IDs.
@@ -77,7 +78,10 @@ class BetPawaClient:
             BetPawaError: If the API request fails.
         """
         try:
-            cutoff_time = datetime.now(tz=UTC) + timedelta(hours=hours_ahead)
+            cutoff_time = (
+                datetime.now(tz=UTC) + timedelta(hours=hours_ahead)
+                if hours_ahead > 0 else None
+            )
             events: list[UpcomingEvent] = []
             skip = 0
             take = DEFAULT_PAGE_SIZE
@@ -130,7 +134,7 @@ class BetPawaClient:
                         continue
 
                     # Sorted ascending by startTime — once we cross cutoff, stop entirely
-                    if upcoming.start_time > cutoff_time:
+                    if cutoff_time is not None and upcoming.start_time > cutoff_time:
                         cutoff_crossed = True
                         break
 
@@ -150,7 +154,8 @@ class BetPawaClient:
 
                 skip += take
 
-            logger.info("Fetched %d upcoming events (next %dh)", len(events), hours_ahead)
+            label = f"next {hours_ahead}h" if hours_ahead > 0 else "all"
+            logger.info("Fetched %d upcoming events (%s)", len(events), label)
             return events
 
         except httpx.HTTPStatusError as e:

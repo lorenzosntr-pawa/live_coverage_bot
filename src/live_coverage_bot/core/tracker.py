@@ -132,6 +132,7 @@ class EventLifecycleTracker:
         current_prematch_ids: set[str],
         now: datetime,
         kickoff_buffer_minutes: int = 3,
+        lookahead_hours: int = 3,
     ) -> list[RemovedResult]:
         """Detect PREMATCH events that disappeared from the feed before kickoff.
 
@@ -140,6 +141,9 @@ class EventLifecycleTracker:
         prematch to live ~1 minute before kickoff.
         Within `kickoff_buffer_minutes` of kickoff, we wait for the event to
         appear in live; post-kickoff, check_transitions/hard_timeout handles it.
+
+        Only considers events within `lookahead_hours` of now — events registered
+        further out (via full scans) aren't expected in the narrow prematch feed.
         """
         active_events = await self._repo.get_active_events()
         removed: list[RemovedResult] = []
@@ -153,6 +157,9 @@ class EventLifecycleTracker:
             # Within the kickoff buffer — event might be mid-transition to live
             minutes_to_kickoff = (event.scheduled_kickoff - now).total_seconds() / 60
             if minutes_to_kickoff < kickoff_buffer_minutes:
+                continue
+            # Beyond the lookahead window — not expected in the narrow prematch feed
+            if lookahead_hours > 0 and minutes_to_kickoff > lookahead_hours * 60:
                 continue
             if event.betpawa_event_id in current_prematch_ids:
                 continue
@@ -328,6 +335,37 @@ class EventLifecycleTracker:
             )
 
         if event.status == EventStatus.PREMATCH and not is_in_live_feed:
+            # Check for kickoff reschedule while still in prematch
+            if prematch_events_map is not None:
+                prematch_event = prematch_events_map.get(event.betpawa_event_id)
+                if prematch_event is not None:
+                    time_diff_sec = (prematch_event.start_time - event.scheduled_kickoff).total_seconds()
+                    if abs(time_diff_sec) > 60:  # More than 1 minute difference
+                        old_kickoff_str = event.scheduled_kickoff.strftime("%H:%M")
+                        new_kickoff_str = prematch_event.start_time.strftime("%H:%M")
+                        details = f"Kickoff rescheduled: {old_kickoff_str} \u2192 {new_kickoff_str} UTC"
+                        await self._repo.update_scheduled_kickoff(
+                            event.id, new_kickoff=prematch_event.start_time,
+                            late_reason="KICKOFF_RESCHEDULED", updated_at=now,
+                        )
+                        await self._repo.insert_state_change(
+                            event.id, old_status, EventStatus.PREMATCH, now, details=details,
+                        )
+                        # Only alert if postponed >24h (bets voided per postponement rule)
+                        if time_diff_sec > 86400:  # More than 24 hours later
+                            return TransitionResult(
+                                event=event,
+                                old_status=old_status,
+                                new_status=EventStatus.PREMATCH,
+                                details=details,
+                            )
+                        logger.info(
+                            "Kickoff updated (within 24h): %s %s vs %s (%s -> %s UTC)",
+                            event.betpawa_event_id, event.home_team,
+                            event.away_team, old_kickoff_str, new_kickoff_str,
+                        )
+                        return None
+
             if elapsed_min >= self._grace_period_minutes:
                 details = f"{int(elapsed_min)}min past kickoff"
                 await self._repo.update_status(event.id, EventStatus.LATE, updated_at=now)

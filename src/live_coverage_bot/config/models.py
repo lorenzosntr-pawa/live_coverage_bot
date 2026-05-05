@@ -10,6 +10,7 @@ class PollingConfig(BaseModel):
     live_interval_seconds: int = 30
     prematch_interval_seconds: int = 150
     prematch_lookahead_hours: int = 3
+    full_scan_interval_seconds: int = 1800
 
 
 class ThresholdConfig(BaseModel):

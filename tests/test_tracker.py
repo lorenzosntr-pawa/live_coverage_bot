@@ -235,6 +235,31 @@ class TestDetectRemoved:
         )
         assert len(removed) == 0
 
+    async def test_not_removed_if_beyond_lookahead(self, tracker, repo):
+        """Events registered from full scan (far from kickoff) are not marked removed."""
+        kickoff = datetime(2026, 4, 20, 15, 0, tzinfo=UTC)  # 5 days away
+        now = datetime(2026, 4, 15, 12, 0, tzinfo=UTC)
+        await tracker.register_prematch_events(
+            [
+                {
+                    "betpawa_event_id": "99050",
+                    "home_team": "TeamA",
+                    "away_team": "TeamB",
+                    "competition": "Test",
+                    "country": "Test",
+                    "scheduled_kickoff": kickoff,
+                    "provider_ids": _make_provider_ids(),
+                }
+            ],
+            now=now,
+        )
+
+        # Event not in 3h prematch feed — should NOT be marked removed (beyond lookahead)
+        removed = await tracker.detect_removed(
+            current_prematch_ids=set(), now=now, lookahead_hours=3
+        )
+        assert len(removed) == 0
+
 
 class TestEnhancedRemoval:
     async def test_detect_removed_records_removed_at(self, db):
@@ -639,3 +664,83 @@ class TestKickoffReschedule:
         assert (EventStatus.PREMATCH, EventStatus.LATE) in statuses
         assert (EventStatus.LATE, EventStatus.PREMATCH) in statuses
         assert (EventStatus.PREMATCH, EventStatus.LIVE) in statuses
+
+    async def test_prematch_updates_kickoff_silently_within_24h(self, db):
+        """Kickoff change within 24h updates DB but does NOT alert (bets stand)."""
+        from live_coverage_bot.clients.models import UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        old_kickoff = datetime(2026, 4, 15, 11, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99020", "home_team": "Ceramica", "away_team": "Pyramids", "competition": "Premier League", "country": "Egypt", "scheduled_kickoff": old_kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 14, 15, 0, tzinfo=UTC))
+
+        # Provider updates kickoff to 17:00 (6h later, within 24h) — no alert
+        new_kickoff = datetime(2026, 4, 15, 17, 0, tzinfo=UTC)
+        prematch_event = UpcomingEvent(event_id="99020", home_team="Ceramica", away_team="Pyramids", competition_name="Premier League", country_name="Egypt", start_time=new_kickoff, provider_ids=_make_provider_ids())
+        transitions = await tracker.check_transitions(set(), now=datetime(2026, 4, 14, 15, 15, tzinfo=UTC), prematch_events_map={"99020": prematch_event})
+
+        assert len(transitions) == 0  # No alert — within 24h
+        event = await repo.get_by_betpawa_id("99020")
+        assert event.status == EventStatus.PREMATCH
+        assert event.scheduled_kickoff == new_kickoff  # But kickoff IS updated
+        assert event.late_reason == "KICKOFF_RESCHEDULED"
+
+    async def test_prematch_alerts_when_postponed_over_24h(self, db):
+        """Kickoff change >24h triggers alert (bets voided per postponement rule)."""
+        from live_coverage_bot.clients.models import UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        old_kickoff = datetime(2026, 4, 15, 11, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99023", "home_team": "TeamP", "away_team": "TeamQ", "competition": "Test", "country": "Test", "scheduled_kickoff": old_kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 14, 15, 0, tzinfo=UTC))
+
+        # Provider postpones to next week (>24h) — must alert
+        new_kickoff = datetime(2026, 4, 22, 11, 0, tzinfo=UTC)
+        prematch_event = UpcomingEvent(event_id="99023", home_team="TeamP", away_team="TeamQ", competition_name="Test", country_name="Test", start_time=new_kickoff, provider_ids=_make_provider_ids())
+        transitions = await tracker.check_transitions(set(), now=datetime(2026, 4, 14, 15, 15, tzinfo=UTC), prematch_events_map={"99023": prematch_event})
+
+        assert len(transitions) == 1
+        t = transitions[0]
+        assert t.old_status == EventStatus.PREMATCH
+        assert t.new_status == EventStatus.PREMATCH
+        assert "11:00" in t.details
+        event = await repo.get_by_betpawa_id("99023")
+        assert event.scheduled_kickoff == new_kickoff
+        assert event.late_reason == "KICKOFF_RESCHEDULED"
+
+    async def test_prematch_no_reschedule_if_same_kickoff(self, db):
+        """No transition when prematch feed has the same kickoff time."""
+        from live_coverage_bot.clients.models import UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        kickoff = datetime(2026, 4, 15, 11, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99021", "home_team": "TeamX", "away_team": "TeamY", "competition": "Test", "country": "Test", "scheduled_kickoff": kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 14, 15, 0, tzinfo=UTC))
+
+        prematch_event = UpcomingEvent(event_id="99021", home_team="TeamX", away_team="TeamY", competition_name="Test", country_name="Test", start_time=kickoff, provider_ids=_make_provider_ids())
+        transitions = await tracker.check_transitions(set(), now=datetime(2026, 4, 14, 15, 15, tzinfo=UTC), prematch_events_map={"99021": prematch_event})
+        assert len(transitions) == 0
+
+    async def test_prematch_reschedule_then_goes_live_on_new_time(self, db):
+        """Full lifecycle: PREMATCH (kickoff silently updated) → LIVE at new kickoff."""
+        from live_coverage_bot.clients.models import LiveEvent, UpcomingEvent
+
+        repo = EventRepository(db)
+        tracker = EventLifecycleTracker(repo, grace_period_minutes=5, hard_timeout_minutes=90, coverage_late_minute_threshold=5)
+        old_kickoff = datetime(2026, 4, 15, 11, 0, tzinfo=UTC)
+        new_kickoff = datetime(2026, 4, 15, 17, 0, tzinfo=UTC)
+        await tracker.register_prematch_events([{"betpawa_event_id": "99022", "home_team": "TeamA", "away_team": "TeamB", "competition": "Test", "country": "Test", "scheduled_kickoff": old_kickoff, "provider_ids": _make_provider_ids()}], now=datetime(2026, 4, 14, 15, 0, tzinfo=UTC))
+
+        # Kickoff silently updated while PREMATCH (within 24h — no alert)
+        prematch_event = UpcomingEvent(event_id="99022", home_team="TeamA", away_team="TeamB", competition_name="Test", country_name="Test", start_time=new_kickoff, provider_ids=_make_provider_ids())
+        transitions = await tracker.check_transitions(set(), now=datetime(2026, 4, 14, 16, 0, tzinfo=UTC), prematch_events_map={"99022": prematch_event})
+        assert len(transitions) == 0  # Silent update
+
+        # Event goes live at new kickoff — delay should be relative to new_kickoff
+        live_event = LiveEvent(event_id="bp:99022", home_team="TeamA", away_team="TeamB", competition_id="1", competition_name="Test", minute="2", home_score=0, away_score=0, start_time=new_kickoff)
+        transitions = await tracker.check_transitions({"99022"}, now=new_kickoff + timedelta(minutes=2), live_events_map={"99022": live_event})
+        assert len(transitions) == 1
+        assert transitions[0].new_status == EventStatus.LIVE
+        event = await repo.get_by_betpawa_id("99022")
+        assert event.status == EventStatus.LIVE
+        assert event.transition_delay_sec == 120  # 2 min after NEW kickoff

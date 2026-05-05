@@ -143,8 +143,13 @@ class SlackClient:
     ) -> str:
         """Format a rescheduled event parent message."""
         provider_str, competition_line, _ = self._format_event_header(event)
-        old_str = old_kickoff.strftime("%H:%M UTC")
-        new_str = new_kickoff.strftime("%H:%M UTC")
+        # Show full date when kickoff moves to a different day
+        if old_kickoff.date() == new_kickoff.date():
+            old_str = old_kickoff.strftime("%H:%M UTC")
+            new_str = new_kickoff.strftime("%H:%M UTC")
+        else:
+            old_str = old_kickoff.strftime("%b %d %H:%M UTC")
+            new_str = new_kickoff.strftime("%b %d %H:%M UTC")
         return (
             f"{EMOJI_CALENDAR} RESCHEDULED {EMOJI_DASH} {event.home_team} vs {event.away_team}\n"
             f"{EMOJI_CLIPBOARD} {competition_line}\n"
@@ -194,6 +199,18 @@ class SlackClient:
             lines.append(match_state.display)
 
         return "\n".join(lines)
+
+    async def post_message(self, text: str) -> str:
+        """Post a text message to the alerts channel. Returns the message ts."""
+        response = await self._client.post(
+            "/chat.postMessage",
+            json={"channel": self._config.channel_id, "text": text},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok"):
+            raise SlackError(f"Slack API error: {data.get('error', 'unknown')}")
+        return data["ts"]
 
     async def post_alert(self, event: TrackedEvent, now: datetime) -> str:
         """Post a new alert message. Returns the message ts."""
