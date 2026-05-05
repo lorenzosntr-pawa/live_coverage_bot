@@ -266,7 +266,7 @@ class SlackClient:
         # Step 1: Get upload URL
         response = await self._client.post(
             "/files.getUploadURLExternal",
-            json={"filename": filename, "length": len(content_bytes)},
+            data={"filename": filename, "length": len(content_bytes)},
         )
         response.raise_for_status()
         data = response.json()
@@ -276,12 +276,16 @@ class SlackClient:
         upload_url = data["upload_url"]
         file_id = data["file_id"]
 
-        # Step 2: Upload file content
-        await self._client.put(
-            upload_url,
-            content=content_bytes,
-            headers={"Content-Type": "text/csv"},
-        )
+        # Step 2: Upload file content to the pre-signed URL
+        # Use a plain httpx request — the upload URL is external and
+        # must not receive our Authorization header.
+        async with httpx.AsyncClient(timeout=30.0) as upload_client:
+            upload_resp = await upload_client.post(
+                upload_url,
+                content=content_bytes,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            upload_resp.raise_for_status()
 
         # Step 3: Complete upload
         complete_body: dict = {

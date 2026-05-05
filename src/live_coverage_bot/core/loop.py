@@ -590,6 +590,9 @@ class MonitoringLoop:
 
             coverage_ts = await slack.post_summary(summary)
 
+            # Mark report as sent immediately to prevent duplicates on retry
+            self._last_report_date = now
+
             # Coverage CSV
             csv_content = await reporter.generate_csv(start, end)
             output_dir = Path(cfg.output_dir)
@@ -597,12 +600,15 @@ class MonitoringLoop:
             csv_path = output_dir / f"weekly-{date_str}.csv"
             csv_path.write_text(csv_content, encoding="utf-8")
 
-            await slack.upload_file(
-                content=csv_content,
-                filename=f"weekly-{date_str}.csv",
-                channel=summary_channel,
-                thread_ts=coverage_ts,
-            )
+            try:
+                await slack.upload_file(
+                    content=csv_content,
+                    filename=f"weekly-{date_str}.csv",
+                    channel=summary_channel,
+                    thread_ts=coverage_ts,
+                )
+            except Exception as e:
+                logger.error("Failed to upload coverage CSV: %s", e)
 
             # --- Message 2: Market Retention Report ---
             if self._settings.markets.enabled:
@@ -616,12 +622,15 @@ class MonitoringLoop:
                 market_csv_path = output_dir / f"weekly-markets-{date_str}.csv"
                 market_csv_path.write_text(market_csv, encoding="utf-8")
 
-                await slack.upload_file(
-                    content=market_csv,
-                    filename=f"weekly-markets-{date_str}.csv",
-                    channel=summary_channel,
-                    thread_ts=market_ts,
-                )
+                try:
+                    await slack.upload_file(
+                        content=market_csv,
+                        filename=f"weekly-markets-{date_str}.csv",
+                        channel=summary_channel,
+                        thread_ts=market_ts,
+                    )
+                except Exception as e:
+                    logger.error("Failed to upload market CSV: %s", e)
 
                 # Per-event CSVs (disk only)
                 event_dir = output_dir / "events" / date_str
@@ -647,7 +656,6 @@ class MonitoringLoop:
                     )
                     (event_dir / filename).write_text(per_event_csv, encoding="utf-8")
 
-            self._last_report_date = now
             logger.info("Weekly report generated (coverage + market retention)")
 
         except Exception as e:

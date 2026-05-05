@@ -424,19 +424,25 @@ class TestSlackFileUpload:
             "upload_url": "https://files.slack.com/upload/v1/abc123",
             "file_id": "F123ABC",
         }
-        # Step 2: PUT to upload URL
+        # Step 2: PUT to upload URL (via separate httpx client)
         upload_response = MagicMock()
-        upload_response.status_code = 200
+        upload_response.is_success = True
+        upload_response.raise_for_status = MagicMock()
         # Step 3: completeUploadExternal
         complete_response = MagicMock()
         complete_response.json.return_value = {"ok": True}
 
+        mock_upload_client = AsyncMock()
+        mock_upload_client.post = AsyncMock(return_value=upload_response)
+        mock_upload_client.__aenter__ = AsyncMock(return_value=mock_upload_client)
+        mock_upload_client.__aexit__ = AsyncMock(return_value=False)
+
         with patch.object(
             client._client, "post",
             side_effect=[url_response, complete_response],
-        ) as mock_post, patch.object(
-            client._client, "put",
-            return_value=upload_response,
+        ) as mock_post, patch(
+            "live_coverage_bot.clients.slack.httpx.AsyncClient",
+            return_value=mock_upload_client,
         ):
             await client.upload_file(
                 content="col1,col2\na,b\n",
@@ -448,6 +454,11 @@ class TestSlackFileUpload:
         # Verify getUploadURLExternal was called
         first_call = mock_post.call_args_list[0]
         assert "/files.getUploadURLExternal" in first_call[0][0]
+
+        # Verify POST was sent to the upload URL without auth headers
+        mock_upload_client.post.assert_called_once()
+        post_call = mock_upload_client.post.call_args
+        assert post_call[0][0] == "https://files.slack.com/upload/v1/abc123"
 
         # Verify completeUploadExternal was called with file_id and thread
         second_call = mock_post.call_args_list[1]

@@ -26,6 +26,11 @@ def main() -> int:
         help="Generate weekly report and exit",
     )
     parser.add_argument(
+        "--send-report",
+        action="store_true",
+        help="Generate and send weekly report to Slack (with CSV), then exit",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         default=None,
@@ -50,6 +55,9 @@ def main() -> int:
 
     if args.generate_report:
         return asyncio.run(_generate_report(settings, logger))
+
+    if args.send_report:
+        return asyncio.run(_send_report(settings, logger))
 
     logger.info(
         "Starting BetPawa Prematch-to-Live Monitor v2 (live: %ds, prematch: %ds)",
@@ -125,6 +133,77 @@ async def _generate_report(settings, logger) -> int:
         logger.info("Per-event CSVs written to %s", event_dir)
 
     await db.close()
+    return 0
+
+
+async def _send_report(settings, logger) -> int:
+    """Generate and send weekly report to Slack with CSV uploads."""
+    db = Database(settings.database.path)
+    await db.initialize()
+    repo = EventRepository(db)
+    market_repo = MarketRepository(db)
+    reporter = WeeklyReporter(repo, week_starts=settings.reporting.week_starts, on_time_threshold_seconds=settings.thresholds.on_time_threshold_seconds)
+    market_reporter = MarketReporter(repo, market_repo)
+
+    now = datetime.now(tz=UTC)
+    start, end = reporter.compute_report_period(now)
+    date_str = now.strftime("%Y-%m-%d")
+
+    summary = await reporter.generate_slack_summary(start, end)
+    if settings.markets.enabled:
+        top_leagues_block = await market_reporter.generate_top_leagues_block(
+            start, end,
+            alert_competition_ids=settings.markets.alert_competition_ids,
+            on_time_threshold_seconds=settings.thresholds.on_time_threshold_seconds,
+        )
+        if top_leagues_block:
+            summary = summary + "\n\n" + top_leagues_block
+
+    async with SlackClient(settings.slack) as slack:
+        summary_channel = settings.slack.summary_channel_id or settings.slack.channel_id
+
+        # Post coverage report
+        coverage_ts = await slack.post_summary(summary)
+        logger.info("Coverage report posted to Slack")
+
+        # Generate and upload CSV
+        csv_content = await reporter.generate_csv(start, end)
+        output_dir = Path(settings.reporting.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"weekly-{date_str}.csv"
+        csv_path.write_text(csv_content, encoding="utf-8")
+
+        await slack.upload_file(
+            content=csv_content,
+            filename=f"weekly-{date_str}.csv",
+            channel=summary_channel,
+            thread_ts=coverage_ts,
+        )
+        logger.info("Coverage CSV uploaded to thread")
+
+        # Market retention report
+        if settings.markets.enabled:
+            retention_threshold = settings.markets.alert_thresholds.retention_below_pct
+            market_summary = await market_reporter.generate_minimal_summary(
+                start, end, retention_threshold=retention_threshold,
+            )
+            market_ts = await slack.post_summary(market_summary)
+            logger.info("Market retention report posted to Slack")
+
+            market_csv = await market_reporter.generate_aggregate_csv(start, end)
+            market_csv_path = output_dir / f"weekly-markets-{date_str}.csv"
+            market_csv_path.write_text(market_csv, encoding="utf-8")
+
+            await slack.upload_file(
+                content=market_csv,
+                filename=f"weekly-markets-{date_str}.csv",
+                channel=summary_channel,
+                thread_ts=market_ts,
+            )
+            logger.info("Market CSV uploaded to thread")
+
+    await db.close()
+    logger.info("Weekly report sent successfully")
     return 0
 
 
